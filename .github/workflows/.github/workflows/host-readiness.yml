@@ -1,0 +1,96 @@
+name: Performance-v2 host readiness only
+
+on:
+  workflow_dispatch:
+    inputs:
+      zero_paid_usage_verified:
+        description: Owner verified sufficient included minutes AND an enforced zero-paid-usage block immediately before dispatch
+        required: true
+        type: boolean
+        default: false
+
+permissions: {}
+concurrency:
+  group: performance-v2-host-readiness
+  cancel-in-progress: false
+
+jobs:
+  host-readiness:
+    if: ${{ github.event.repository.private == true && inputs.zero_paid_usage_verified == true }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      CUDA_VISIBLE_DEVICES: ''
+    steps:
+      - name: Read host and local Docker metadata only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import datetime, json, os, pathlib, platform, shutil, subprocess, traceback
+          report = {
+              'scope': 'host_docker_metadata_only',
+              'status': 'partial',
+              'pilot_execution_authorized': False,
+              'stage_b': 'paused',
+              'linux_acceptance_passed': False,
+              'security_clearance_passed': False,
+              'container_enforcement_verified': False,
+              'billing_verified_by_script': False,
+              'timestamp_utc': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+              'run_id': os.environ.get('GITHUB_RUN_ID'),
+              'run_attempt': os.environ.get('GITHUB_RUN_ATTEMPT'),
+              'workflow_commit': os.environ.get('GITHUB_SHA'),
+          }
+          def require(ok, message):
+              if not ok:
+                  raise RuntimeError(message)
+          def command(args):
+              result = subprocess.run(args, capture_output=True, text=True, timeout=15, check=True)
+              require(len(result.stdout) + len(result.stderr) <= 262144, 'oversize metadata response')
+              return result.stdout
+          try:
+              report['machine'] = platform.machine()
+              report['kernel'] = platform.release()
+              report['os_release'] = pathlib.Path('/etc/os-release').read_text()
+              require(report['machine'] == 'x86_64', 'requires x64')
+              require('VERSION_ID="24.04"' in report['os_release'], 'requires Ubuntu 24.04')
+              report['runner_image'] = {k: os.environ.get(k) for k in ('ImageOS', 'ImageVersion', 'RUNNER_ARCH', 'RUNNER_ENVIRONMENT')}
+              require(os.environ.get('RUNNER_ENVIRONMENT') == 'github-hosted', 'requires GitHub-hosted runner')
+              require(os.environ.get('RUNNER_ARCH') == 'X64', 'requires x64 runner')
+              report['meminfo'] = pathlib.Path('/proc/meminfo').read_text()
+              report['swap_devices'] = pathlib.Path('/proc/swaps').read_text()
+              report['process_cgroup'] = pathlib.Path('/proc/self/cgroup').read_text()
+              report['process_mountinfo'] = pathlib.Path('/proc/self/mountinfo').read_text()
+              report['logical_cpus'] = os.cpu_count()
+              report['disk'] = {}
+              for path in ('/', '/var/lib/docker', os.environ['RUNNER_TEMP']):
+                  usage = shutil.disk_usage(path)
+                  report['disk'][path] = dict(total=usage.total, free=usage.free, used=usage.used)
+              # Explicit local Unix endpoint: never follow a saved remote context.
+              docker = ['docker', '--host', 'unix:///var/run/docker.sock']
+              report['docker_endpoint'] = 'unix:///var/run/docker.sock'
+              require(pathlib.Path('/var/run/docker.sock').is_socket(), 'local Docker socket missing')
+              info = json.loads(command(docker + ['info', '--format', '{{json .}}']))
+              fields = ('ServerVersion', 'OSType', 'Architecture', 'KernelVersion', 'CgroupVersion', 'CgroupDriver', 'SecurityOptions', 'MemoryLimit', 'SwapLimit', 'CpuCfsQuota', 'CpuCfsPeriod', 'PidsLimit', 'Warnings', 'DockerRootDir')
+              report['docker'] = {key: info.get(key) for key in fields}
+              require(info.get('OSType') == 'linux', 'requires Linux daemon')
+              require(info.get('Architecture') == 'x86_64', 'requires x64 daemon')
+              for key in ('MemoryLimit', 'SwapLimit', 'CpuCfsQuota', 'CpuCfsPeriod', 'PidsLimit'):
+                  require(info.get(key) is True, 'missing/unsupported Docker control: ' + key)
+              require(info.get('CgroupVersion') in ('1', '2'), 'unknown cgroup version')
+              require(not info.get('Warnings'), 'Docker warnings require review')
+              # This is metadata readiness, not proof of the inspector's limits.
+              require(report['disk']['/var/lib/docker']['free'] >= 1024**3, 'less than 1 GiB diagnostic headroom')
+              report['status'] = 'metadata_checks_passed_pending_review'
+          except BaseException:
+              report['failure_traceback'] = traceback.format_exc()
+              raise
+          finally:
+              encoded = json.dumps(report, indent=2, sort_keys=True)
+              print(encoded, flush=True)
+              pathlib.Path(os.environ['RUNNER_TEMP'], 'host-readiness.json').write_text(encoded + '\n')
+              with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as stream:
+                  stream.write('Host readiness: ' + report['status'] + '\n\nNo container was run. Enforced inspector limits, Linux acceptance and security clearance remain pending.\n')
+          PY
