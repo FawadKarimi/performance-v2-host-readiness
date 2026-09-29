@@ -1,0 +1,204 @@
+name: Read-only pre-provision inventory
+
+on:
+  workflow_dispatch:
+    inputs:
+      zero_paid_usage_verified:
+        description: 'Freshly verified account-wide Actions budget $0, Stop usage Yes'
+        type: boolean
+        required: true
+        default: false
+      included_usage_verified:
+        description: 'Freshly checked included minutes/storage, accounting for concurrent jobs'
+        type: boolean
+        required: true
+        default: false
+      billing_checked_at_utc:
+        description: 'Owner billing check UTC timestamp, e.g. 2026-09-29T12:00:00Z (max age 1 hour)'
+        type: string
+        required: true
+      remaining_included_minutes:
+        description: 'Available included minutes after reserving concurrent usage; at least 10'
+        type: string
+        required: true
+      remaining_included_storage_mib:
+        description: 'Available included storage headroom after concurrent usage; at least 64 MiB'
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pre-provision-inventory
+  cancel-in-progress: false
+
+jobs:
+  inventory:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.repository == 'FawadKarimi/performance-v2-host-readiness' &&
+      github.event.repository.private == true &&
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
+      inputs.zero_paid_usage_verified == true && inputs.included_usage_verified == true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    defaults:
+      run:
+        shell: bash
+    env:
+      EVIDENCE: ${{ runner.temp }}/pv2-inventory-${{ github.run_id }}-${{ github.run_attempt }}
+      COLLECTOR_SHA256: f5729f0a55dfbdf8cfe450ba6da94e2d1ae8f4b73ad581fa57cf50ed2d3d0657
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Record identity and fresh owner billing attestation
+        id: admission
+        env:
+          BILLING_AT: ${{ inputs.billing_checked_at_utc }}
+          MINUTES: ${{ inputs.remaining_included_minutes }}
+          STORAGE_MIB: ${{ inputs.remaining_included_storage_mib }}
+          ZERO_PAID: ${{ inputs.zero_paid_usage_verified }}
+          INCLUDED: ${{ inputs.included_usage_verified }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+          WORKFLOW_REF: ${{ github.workflow_ref }}
+          REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
+        run: |
+          /usr/bin/python3 -I -S -B - <<'PY'
+          import datetime, json, os, pathlib, re, traceback
+          root = pathlib.Path(os.environ['EVIDENCE'])
+          root.mkdir(mode=0o700, exist_ok=False)
+          now = datetime.datetime.now(datetime.timezone.utc)
+          keys = ('GITHUB_REPOSITORY', 'GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT', 'GITHUB_SHA',
+                  'GITHUB_REF', 'GITHUB_ACTOR', 'GITHUB_EVENT_NAME', 'GITHUB_SERVER_URL',
+                  'WORKFLOW_SHA', 'WORKFLOW_REF', 'REPOSITORY_PRIVATE', 'RUNNER_ENVIRONMENT',
+                  'RUNNER_OS', 'RUNNER_ARCH', 'RUNNER_NAME', 'ImageOS', 'ImageVersion', 'ImageRelease')
+          record = {'recorded_at_utc': now.isoformat(), 'identity': {k: os.environ.get(k) for k in keys},
+                    'billing': {'source': 'fresh owner attestation; not API verified',
+                                'checked_at_utc': os.environ['BILLING_AT'], 'minutes': os.environ['MINUTES'],
+                                'storage_mib': os.environ['STORAGE_MIB'], 'zero_paid': os.environ['ZERO_PAID'],
+                                'included': os.environ['INCLUDED']},
+                    'execution_approved': False, 'security_approved': False,
+                    'pilot_execution_authorized': False, 'stage_b': 'paused', 'admitted': False}
+          try:
+              assert os.environ['ZERO_PAID'] == os.environ['INCLUDED'] == 'true', 'billing confirmations required'
+              assert re.fullmatch(r'\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ', os.environ['BILLING_AT']), 'UTC timestamp required'
+              checked = datetime.datetime.fromisoformat(os.environ['BILLING_AT'].replace('Z', '+00:00'))
+              assert 0 <= (now - checked).total_seconds() <= 3600, 'billing check stale or in future'
+              for key, minimum in [('MINUTES', 10), ('STORAGE_MIB', 64)]:
+                  assert re.fullmatch(r'[0-9]+', os.environ[key]) and int(os.environ[key]) >= minimum, key
+              assert os.environ['RUNNER_ENVIRONMENT'] == 'github-hosted', 'standard hosted runner required'
+              assert os.environ['RUNNER_OS'] == 'Linux' and os.environ['RUNNER_ARCH'] == 'X64', 'Linux x64 required'
+              assert os.environ.get('ImageOS') == 'ubuntu24' and os.environ.get('ImageVersion'), 'runner image identity missing/wrong'
+              record['admitted'] = True
+          except Exception:
+              record['error'] = traceback.format_exc()
+              raise
+          finally:
+              (root / 'admission.json').write_text(json.dumps(record, indent=2, sort_keys=True) + '\n')
+          PY
+
+      - name: Checkout only reviewed collector and workflow
+        id: checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+          submodules: false
+          lfs: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /scripts/collect_native_inventory.py
+            /.github/workflows/pre-provision-inventory.yml
+
+      - name: Verify exact bytes then collect once
+        id: collect
+        timeout-minutes: 4
+        run: |
+          /usr/bin/python3 -I -S -B - <<'PY'
+          import hashlib, json, os, pathlib
+          p = pathlib.Path('scripts/collect_native_inventory.py')
+          assert p.is_file() and not p.is_symlink(), 'collector must be regular file'
+          digest = hashlib.sha256(p.read_bytes()).hexdigest()
+          root = pathlib.Path(os.environ['EVIDENCE'])
+          (root / 'collector-hash.json').write_text(json.dumps({'expected': os.environ['COLLECTOR_SHA256'], 'actual': digest}) + '\n')
+          assert digest == os.environ['COLLECTOR_SHA256'], 'reviewed collector hash mismatch'
+          (root / 'workflow.yml').write_bytes(pathlib.Path('.github/workflows/pre-provision-inventory.yml').read_bytes())
+          PY
+          printf '%s\n' '/usr/bin/python3 -I -S -B scripts/collect_native_inventory.py --collect-read-only --stage pre-provision' > "$EVIDENCE/command.txt"
+          date --utc --iso-8601=ns > "$EVIDENCE/started-at.txt"
+          # File-size bound applies to each redirected file; collector JSON bound is 16 MiB.
+          ulimit -f 18432
+          set +e
+          /usr/bin/timeout --signal=TERM --kill-after=5s 210s /usr/bin/python3 -I -S -B scripts/collect_native_inventory.py --collect-read-only --stage pre-provision > "$EVIDENCE/raw.json" 2> "$EVIDENCE/stderr.log"
+          rc=$?
+          printf '%s\n' "$rc" > "$EVIDENCE/exit-status.txt"
+          set -e
+          date --utc --iso-8601=ns > "$EVIDENCE/ended-at.txt"
+          # Defer failure classification until after evidence upload. No retry.
+
+      - name: Seal captured evidence without rewriting raw output
+        if: always()
+        id: seal
+        env:
+          ADMISSION_OUTCOME: ${{ steps.admission.outcome }}
+          CHECKOUT_OUTCOME: ${{ steps.checkout.outcome }}
+          COLLECT_OUTCOME: ${{ steps.collect.outcome }}
+        run: |
+          /usr/bin/python3 -I -S -B - <<'PY'
+          import hashlib, json, os, pathlib, traceback
+          root = pathlib.Path(os.environ['EVIDENCE'])
+          root.mkdir(mode=0o700, exist_ok=True)
+          summary = {'status': 'incomplete_or_failed', 'execution_approved': False, 'security_approved': False,
+                     'dependencies_approved': False, 'pilot_execution_authorized': False, 'stage_b': 'paused',
+                     'step_outcomes': {k: os.environ[k] for k in ('ADMISSION_OUTCOME', 'CHECKOUT_OUTCOME', 'COLLECT_OUTCOME')}}
+          try:
+              assert all(v == 'success' for v in summary['step_outcomes'].values()), 'orchestration step failed/skipped'
+              rc = int((root / 'exit-status.txt').read_text())
+              summary['immediate_wrapper_exit_status'] = rc
+              assert rc in (0, 2), 'collector failed or timed out; raw output retained'
+              report = json.loads((root / 'raw.json').read_bytes())
+              assert report['schema'] == 'pv2_host_observation_v1' and report['stage'] == 'pre-provision'
+              assert report['collector_sha256'] == os.environ['COLLECTOR_SHA256']
+              for key in ('execution_approved', 'security_approved', 'dependencies_approved',
+                          'pilot_execution_authorized', 'runtime_closure_reviewed', 'launcher_inventory_ready'):
+                  assert report[key] is False, key
+              assert report['stage_b'] == 'paused'
+              assert report['status'] == {0: 'observed_not_approved', 2: 'observed_with_gaps'}[rc]
+              summary['status'] = report['status']
+              summary['reported_gap_count'] = len(report['errors'])
+          except Exception:
+              summary['error'] = traceback.format_exc()
+          (root / 'summary.json').write_text(json.dumps(summary, sort_keys=True, indent=2) + '\n')
+          ledger = {p.name: {'sha256': hashlib.sha256(p.read_bytes()).hexdigest(), 'size': p.stat().st_size}
+                    for p in sorted(root.iterdir()) if p.is_file() and p.name != 'manifest.json'}
+          (root / 'manifest.json').write_text(json.dumps(ledger, sort_keys=True, indent=2) + '\n')
+          print(json.dumps(summary, sort_keys=True))
+          PY
+
+      - name: Preserve partial or complete inventory evidence
+        if: always()
+        id: upload
+        timeout-minutes: 2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: pre-provision-inventory-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.EVIDENCE }}/
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 6
+          overwrite: false
+
+      - name: Final status (gaps are not approval)
+        if: always()
+        env:
+          UPLOAD_OUTCOME: ${{ steps.upload.outcome }}
+          SEAL_OUTCOME: ${{ steps.seal.outcome }}
+        run: |
+          /usr/bin/python3 -I -S -B - <<'PY'
+          import json, os, pathlib
+          assert os.environ['UPLOAD_OUTCOME'] == os.environ['SEAL_OUTCOME'] == 'success', 'evidence export incomplete'
+          summary = json.loads((pathlib.Path(os.environ['EVIDENCE']) / 'summary.json').read_text())
+          assert summary['status'] in ('observed_not_approved', 'observed_with_gaps'), 'inventory failed; inspect partial artifact'
+          print('Read-only observation saved. All execution/security/pilot approvals remain false.')
+          PY
