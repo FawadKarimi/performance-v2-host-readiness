@@ -47,10 +47,14 @@ jobs:
       run:
         shell: bash
     env:
-      EVIDENCE: ${{ runner.temp }}/pv2-inventory-${{ github.run_id }}-${{ github.run_attempt }}
       COLLECTOR_SHA256: f5729f0a55dfbdf8cfe450ba6da94e2d1ae8f4b73ad581fa57cf50ed2d3d0657
       PYTHONDONTWRITEBYTECODE: '1'
     steps:
+      - name: Initialize evidence path
+        run: |
+          printf 'EVIDENCE=%s/pv2-inventory-%s-%s\n' \
+            "$RUNNER_TEMP" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
+
       - name: Record identity and fresh owner billing attestation
         id: admission
         env:
