@@ -48,6 +48,8 @@ jobs:
         shell: bash
     env:
       COLLECTOR_SHA256: db8ed69ac9cb0db4a2603e9944b2951204eccf5c5f8dc1974c14d19118451a21
+      DIAGNOSTIC_SHA256: 7ce499feecb6e8323b989259d42da5db9a2f13fd5df455028929a5ea7f45620f
+      BINDING_SHA256: dc7d43921c02b4abf942ac8442843534cd0e0642ea5f523837586778e542bfd3
       PYTHONDONTWRITEBYTECODE: '1'
     steps:
       - name: Initialize evidence path
@@ -113,6 +115,8 @@ jobs:
           sparse-checkout-cone-mode: false
           sparse-checkout: |
             /scripts/collect_native_inventory.py
+            /scripts/diagnose_sitecustomize.py
+            /scripts/sitecustomize_binding.py
             /.github/workflows/pre-provision-inventory.yml
 
       - name: Verify exact bytes then collect once
@@ -127,10 +131,15 @@ jobs:
           root = pathlib.Path(os.environ['EVIDENCE'])
           (root / 'collector-hash.json').write_text(json.dumps({'expected': os.environ['COLLECTOR_SHA256'], 'actual': digest}) + '\n')
           assert digest == os.environ['COLLECTOR_SHA256'], 'reviewed collector hash mismatch'
+          for filename, key in [('diagnose_sitecustomize.py', 'DIAGNOSTIC_SHA256'), ('sitecustomize_binding.py', 'BINDING_SHA256')]:
+              script = pathlib.Path('scripts') / filename
+              assert script.is_file() and not script.is_symlink(), 'script must be regular'
+              assert hashlib.sha256(script.read_bytes()).hexdigest() == os.environ[key], 'reviewed auxiliary script hash mismatch'
           (root / 'workflow.yml').write_bytes(pathlib.Path('.github/workflows/pre-provision-inventory.yml').read_bytes())
           PY
           printf '%s\n' '/usr/bin/python3 -I -S -B scripts/collect_native_inventory.py --collect-read-only --stage pre-provision' > "$EVIDENCE/command.txt"
           date --utc --iso-8601=ns > "$EVIDENCE/started-at.txt"
+          /usr/bin/python3 -I -S -B scripts/sitecustomize_binding.py snapshot
           # File-size bound applies to each redirected file; collector JSON bound is 16 MiB.
           ulimit -f 18432
           set +e
@@ -141,6 +150,30 @@ jobs:
           date --utc --iso-8601=ns > "$EVIDENCE/ended-at.txt"
           # Defer failure classification until after evidence upload. No retry.
 
+
+      - name: Gate exact rejected pair on the current job and boot
+        id: binding_gate
+        timeout-minutes: 1
+        run: |
+          /usr/bin/python3 -I -S -B scripts/sitecustomize_binding.py gate
+
+      - name: Diagnose exact pair on the same runner
+        id: diagnostic
+        if: ${{ success() && steps.binding_gate.outputs.required == 'true' }}
+        timeout-minutes: 1
+        run: |
+          /usr/bin/python3 -I -S -B scripts/sitecustomize_binding.py prediagnostic
+          printf '%s\n' '/usr/bin/python3 -I -S -B scripts/diagnose_sitecustomize.py --read-only-exact-path' > "$EVIDENCE/diagnostic-command.txt"
+          date --utc --iso-8601=ns > "$EVIDENCE/diagnostic-started-at.txt"
+          ulimit -f 18432
+          set +e
+          /usr/bin/timeout --signal=TERM --kill-after=2s 30s /usr/bin/python3 -I -S -B scripts/diagnose_sitecustomize.py --read-only-exact-path > "$EVIDENCE/diagnostic.json" 2> "$EVIDENCE/diagnostic-stderr.log"
+          rc=$?
+          printf '%s\n' "$rc" > "$EVIDENCE/diagnostic-exit-status.txt"
+          set -e
+          date --utc --iso-8601=ns > "$EVIDENCE/diagnostic-ended-at.txt"
+          /usr/bin/python3 -I -S -B scripts/sitecustomize_binding.py after
+
       - name: Seal captured evidence without rewriting raw output
         if: always()
         id: seal
@@ -148,14 +181,16 @@ jobs:
           ADMISSION_OUTCOME: ${{ steps.admission.outcome }}
           CHECKOUT_OUTCOME: ${{ steps.checkout.outcome }}
           COLLECT_OUTCOME: ${{ steps.collect.outcome }}
+          GATE_OUTCOME: ${{ steps.binding_gate.outcome }}
+          DIAGNOSTIC_OUTCOME: ${{ steps.diagnostic.outcome }}
         run: |
           /usr/bin/python3 -I -S -B - <<'PY'
-          import hashlib, json, os, pathlib, traceback
+          import hashlib, json, os, pathlib, subprocess, traceback
           root = pathlib.Path(os.environ['EVIDENCE'])
           root.mkdir(mode=0o700, exist_ok=True)
           summary = {'status': 'incomplete_or_failed', 'execution_approved': False, 'security_approved': False,
                      'dependencies_approved': False, 'pilot_execution_authorized': False, 'stage_b': 'paused',
-                     'step_outcomes': {k: os.environ[k] for k in ('ADMISSION_OUTCOME', 'CHECKOUT_OUTCOME', 'COLLECT_OUTCOME')}}
+                     'step_outcomes': {k: os.environ[k] for k in ('ADMISSION_OUTCOME', 'CHECKOUT_OUTCOME', 'COLLECT_OUTCOME', 'GATE_OUTCOME')}}
           try:
               assert all(v == 'success' for v in summary['step_outcomes'].values()), 'orchestration step failed/skipped'
               rc = int((root / 'exit-status.txt').read_text())
@@ -169,6 +204,13 @@ jobs:
                   assert report[key] is False, key
               assert report['stage_b'] == 'paused'
               assert report['status'] == {0: 'observed_not_approved', 2: 'observed_with_gaps'}[rc]
+              binding_script = pathlib.Path('scripts/sitecustomize_binding.py')
+              assert hashlib.sha256(binding_script.read_bytes()).hexdigest() == os.environ['BINDING_SHA256'], 'binding script changed'
+              subprocess.run(['/usr/bin/python3', '-I', '-S', '-B', str(binding_script), 'verify'], check=True, timeout=10)
+              required = json.loads((root / 'inventory-binding.json').read_text())['diagnostic_required']
+              assert os.environ['DIAGNOSTIC_OUTCOME'] == ('success' if required else 'skipped'), 'diagnostic outcome mismatch'
+              summary['diagnostic_required'] = required
+              summary['diagnostic_outcome'] = os.environ['DIAGNOSTIC_OUTCOME']
               summary['status'] = report['status']
               summary['reported_gap_count'] = len(report['errors'])
           except Exception:
