@@ -47,7 +47,7 @@ jobs:
       run:
         shell: bash
     env:
-      COLLECTOR_SHA256: f5729f0a55dfbdf8cfe450ba6da94e2d1ae8f4b73ad581fa57cf50ed2d3d0657
+      COLLECTOR_SHA256: db8ed69ac9cb0db4a2603e9944b2951204eccf5c5f8dc1974c14d19118451a21
       PYTHONDONTWRITEBYTECODE: '1'
     steps:
       - name: Initialize evidence path

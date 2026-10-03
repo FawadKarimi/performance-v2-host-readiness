@@ -31,6 +31,16 @@ def require(value, why):
     if not value: raise ValueError(why)
 
 
+class RuntimeCandidateRejected(ValueError):
+    def __init__(self, path, sources, roots):
+        self.context = {'resolved_candidate_path': path,
+                        'candidate_sources': sorted(sources, key=lambda x: (x['origin'], x['path'])),
+                        'approved_roots': list(roots), 'candidate_hashed': False,
+                        'validation_stage': 'runtime_paths_before_artifact_hashing'}
+        super().__init__('runtime candidate outside approved OS roots; review path before hashing: '
+                         + json.dumps(self.context, sort_keys=True))
+
+
 def mounts(text):
     rows = []
     def unescape(s):
@@ -115,24 +125,30 @@ class Reader:
     def runtime_paths(self):
         # Conservative Python candidate set; not native dependency closure proof.
         paths = set()
+        sources = {}
+        def add_candidate(path, origin):
+            resolved = os.path.realpath(path)
+            paths.add(resolved)
+            source = {'origin': origin, 'path': path}
+            if source not in sources.setdefault(resolved, []): sources[resolved].append(source)
         base = sysconfig.get_path('stdlib')
         for root, dirs, files in os.walk(base, followlinks=False):
             dirs[:] = sorted(d for d in dirs if d not in ('site-packages', 'dist-packages') and not os.path.islink(os.path.join(root, d)))
             for name in sorted(files):
                 self.remaining()
-                if name.endswith(('.py', '.pyc', '.so')): paths.add(os.path.realpath(os.path.join(root, name)))
+                if name.endswith(('.py', '.pyc', '.so')): add_candidate(os.path.join(root, name), 'stdlib_walk')
                 require(len(paths) <= 12000, 'runtime candidate count')
         for line in self.text('/proc/self/maps').splitlines():
             parts = line.split(None, 5)
             if len(parts) == 6 and parts[5].startswith('/'):
                 require(not parts[5].endswith(' (deleted)'), 'deleted mapped runtime file')
-                paths.add(os.path.realpath(parts[5]))
+                add_candidate(parts[5], 'proc_self_maps')
         for entry in sys.path:
-            if entry.endswith('.zip') and os.path.isfile(entry): paths.add(os.path.realpath(entry))
-        paths.add(os.path.realpath(sys.executable))
-        for path in paths:
-            require(path.startswith(('/usr/lib/', '/usr/lib64/', '/usr/local/lib/', '/usr/bin/', '/usr/local/bin/', '/lib/', '/lib64/')),
-                    'runtime candidate outside approved OS roots; review path before hashing')
+            if entry.endswith('.zip') and os.path.isfile(entry): add_candidate(entry, 'sys_path_zip')
+        add_candidate(sys.executable, 'sys_executable')
+        roots = ('/usr/lib/', '/usr/lib64/', '/usr/local/lib/', '/usr/bin/', '/usr/local/bin/', '/lib/', '/lib64/')
+        for path in sorted(paths):
+            if not path.startswith(roots): raise RuntimeCandidateRejected(path, sources[path], roots)
         return sorted(paths)
 
 
@@ -182,7 +198,10 @@ def collect(reader, identity, stage):
     try:
         for path in reader.runtime_paths():
             capture('runtime_candidates', path, lambda p=path: reader.artifact(p))
-    except Exception as exc: report['errors'].append({'item': 'runtime enumeration', 'error': repr(exc)})
+    except Exception as exc:
+        error = {'item': 'runtime enumeration', 'error': repr(exc)}
+        if isinstance(exc, RuntimeCandidateRejected): error['context'] = exc.context
+        report['errors'].append(error)
     report['status'] = 'observed_with_gaps' if report['errors'] else 'observed_not_approved'
     return report
 
