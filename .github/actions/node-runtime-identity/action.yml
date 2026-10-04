@@ -1,0 +1,5 @@
+name: Read-only actual Actions Node identity
+description: Records this action's actual interpreter; no installations or network.
+runs:
+  using: node24
+  main: identity.cjs

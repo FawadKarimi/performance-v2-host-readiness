@@ -1,0 +1,30 @@
+{
+  "schema": "compatibility_source_lock_v1",
+  "execution_authorized": false,
+  "files": {
+    ".github/actions/node-runtime-identity/action.yml": "52e7ee20aaffe85ba0a8ec81e62cc0d97bee2899620cbd3494a8c45d642e689b",
+    ".github/actions/node-runtime-identity/identity.cjs": "9a2ab3ba1650f820b8daa7447cb0df449d35f6fcf516b9db5d5cb57036b9bee7",
+    ".github/workflows/metadata-linux-compatibility.yml": "bd3aec5b180ce946e168e6d9c852cf0693ad9c4de0f30cb05723897627d9756a",
+    ".github/workflows/public-metadata-candidate.yml": "7900a1e4110c14dfe83b40a9b909fc694908f1266350d195daea76932436af3d",
+    "admission.py": "cd079ad9472e54e016f713cd35f6588483cf931907c2227f2d97bfe2d7eefd7a",
+    "authorization-TEMPLATE.json": "8e69a6373d6d19f0f1d720f6d5612f46ba2a0a7d649471bd8a3a2964f402a71d",
+    "collector.py": "13c6675e0521cf526df13cb1915b2550c5dbec677a22eac0f6be8ab3b7964639",
+    "external-review-TEMPLATE.json": "9507a6c13ba0eab7da43d5fef9629e626e849a04f57dbce9bc6163e681ddf3ad",
+    "external_review.py": "77f8da52fb460719c50cac348768b52048f45ee94757a73faea1fffaa995d63d",
+    "metadata-runtime-acceptance.json": "9f1a2e244c30cda23660ff958543b4823217c222e9619e051878a0ac7b98cd4e",
+    "output_security.py": "7366173ae697bfea96a9e37693fa37ead4385c0dafe8c287c1efd778c47eee5a",
+    "request-manifest.json": "587b0eb7e124783ec6a62d7f316fdd263f40cf3b9130b64eaf6f8855395dd551",
+    "runtime-identity-reference.json": "8898d6c17bb9ed362339d0357b948db2064e36acc8b02f5553a27d849c4a63a7",
+    "runtime_acceptance.py": "df67147aed7d24cd79552141228565fb422ee86fe2509f3b82a8222a7bba6592",
+    "scripts/run_linux_compatibility.py": "d712f26a35cb4595eb7cb63d6e601efbf9d27a520ff0729fa71abaa3a23c305a",
+    "test_admission.py": "f81b62984f93bba1f4b9ecf490be94b594c77f0d0c9619718886a3bd0e0e8569",
+    "test_collector.py": "5de4c57e868947aefaf2bcbcbf680e3bb8c75114c941948a2fa1dd651975621a",
+    "test_consolidated_workflows.py": "7ce89d2d98ef67b2de590a90c3e6cc2d60dd76e28ea8bbc485fca1f2d0296884",
+    "test_external_review.py": "51a3d6b49c80818d7a2b194ec762ea22d124cc022ca291081eb1f83045f43807",
+    "test_namespace_correction.py": "db4f765852d113c54f6e37fb928e56d8d438f16e5b1bdd99d5e5e018c42fef18",
+    "test_node_identity.cjs": "a3b80c2ac682eea9dd0c125c4488ff842ed06ffa0f542659ad5e1ecb09fa42e9",
+    "test_runtime_admission.py": "dfc5514b6e45bb378c405b0b772e9313cfa7d77bb61c49968a3d50e559ec0836",
+    "test_runtime_inventory.py": "b32177d2e15a5c4d010a97d5d3dec7055e34f4e37e055f0a38984d8d665470e5",
+    "worker_diagnostics.py": "f727b5d6a782bf313fe1ba00ca326d08769a384b87ef1cf1c14eb61ef6706427"
+  }
+}

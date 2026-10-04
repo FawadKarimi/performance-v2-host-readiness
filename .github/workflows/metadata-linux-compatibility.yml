@@ -1,0 +1,70 @@
+name: Offline native metadata compatibility (unapproved candidate)
+on:
+  workflow_dispatch:
+    inputs:
+      authorize_synthetic_only:
+        type: boolean
+        required: true
+        default: false
+      fresh_zero_paid_usage:
+        type: boolean
+        required: true
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: metadata-linux-compatibility
+  cancel-in-progress: false
+jobs:
+  compatibility:
+    if: ${{ github.repository == 'FawadKarimi/performance-v2-host-readiness' && github.event.repository.private == true }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      CUDA_VISIBLE_DEVICES: ''
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Observe actual Actions Node runtime (not acceptance)
+        if: ${{ inputs.authorize_synthetic_only && inputs.fresh_zero_paid_usage }}
+        timeout-minutes: 1
+        continue-on-error: true
+        uses: ./.github/actions/node-runtime-identity
+      - name: Isolate network, drop privileges, enforce runtime identity and run synthetic tests
+        shell: bash
+        env:
+          SYNTHETIC_PERMISSION: ${{ inputs.authorize_synthetic_only }}
+          BILLING_CONFIRMATION: ${{ inputs.fresh_zero_paid_usage }}
+        run: |
+          set -euo pipefail
+          umask 077
+          launch="$RUNNER_TEMP/compatibility-launch-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          mkdir -m 700 "$launch"
+          printf '{"status":"started","accepted":false}\n' > "$launch/started.json"
+          [[ "$SYNTHETIC_PERMISSION" == true && "$BILLING_CONFIRMATION" == true ]]
+          parent_net="$(readlink /proc/self/ns/net)"
+          runner_uid="$(id -u)"
+          runner_user="$(id -un)"
+          [[ "$runner_uid" != 0 ]]
+          printf '%s\n' "$parent_net" > "$launch/parent-network-namespace.txt"
+          set +e
+          ulimit -f 2048
+          sudo -n /usr/bin/timeout --signal=TERM --kill-after=5s 120s /usr/bin/unshare --net /usr/sbin/runuser --user "$runner_user" -- /usr/bin/env -i PATH=/usr/bin:/bin HOME="$RUNNER_TEMP" RUNNER_TEMP="$RUNNER_TEMP" PYTHONDONTWRITEBYTECODE=1 CUDA_VISIBLE_DEVICES= /usr/bin/python3 -I -B scripts/run_linux_compatibility.py --parent-net "$parent_net" --uid "$runner_uid" --output "$RUNNER_TEMP/compatibility-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" > "$launch/stdout.log" 2> "$launch/stderr.log"
+          code=$?
+          printf '%s\n' "$code" > "$launch/immediate-exit-status.txt"
+          exit "$code"
+      - name: Retain full partial synthetic evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: metadata-compatibility-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/node-identity-${{ github.run_id }}-${{ github.run_attempt }}/
+            ${{ runner.temp }}/compatibility-launch-${{ github.run_id }}-${{ github.run_attempt }}/
+            ${{ runner.temp }}/compatibility-${{ github.run_id }}-${{ github.run_attempt }}/
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: false

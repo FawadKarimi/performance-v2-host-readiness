@@ -1,0 +1,76 @@
+name: Public metadata external-review candidate (unapproved)
+on:
+  workflow_dispatch:
+    inputs:
+      external_record_json:
+        description: Externally reviewed nonsecret one-dispatch decision
+        type: string
+        default: '{}'
+        required: true
+      external_record_sha256:
+        type: string
+        default: ''
+        required: true
+      owner_authorizes_requests:
+        type: boolean
+        default: false
+        required: true
+      fresh_zero_paid_usage:
+        type: boolean
+        default: false
+        required: true
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: public-metadata-external-review
+  cancel-in-progress: false
+jobs:
+  collect:
+    if: ${{ github.repository == 'FawadKarimi/performance-v2-host-readiness' && github.event.repository.private == true }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      CUDA_VISIBLE_DEVICES: ''
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - name: External record, fresh runtime and single-use dispatch gate
+        shell: bash
+        env:
+          EXTERNAL_RECORD_JSON: ${{ inputs.external_record_json }}
+          EXTERNAL_RECORD_SHA256: ${{ inputs.external_record_sha256 }}
+          OWNER_CONFIRMATION: ${{ inputs.owner_authorizes_requests }}
+          BILLING_CONFIRMATION: ${{ inputs.fresh_zero_paid_usage }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          umask 077
+          timeout --signal=TERM --kill-after=5s 45s /usr/bin/python3 -I -B external_review.py
+      - name: Bounded unchanged collector entry point
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          folder="$RUNNER_TEMP/external-review-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          receipt_hash="$(sha256sum "$folder/receipt.json" | cut -d ' ' -f 1)"
+          runtime_hash="$(sha256sum metadata-runtime-acceptance.json | cut -d ' ' -f 1)"
+          set +e
+          timeout --signal=TERM --kill-after=5s 135s /usr/bin/python3 -I -B collector.py --manifest request-manifest.json --authorization "$folder/receipt.json" --authorization-sha256 "$receipt_hash" --runtime-acceptance metadata-runtime-acceptance.json --runtime-acceptance-sha256 "$runtime_hash" --output "$RUNNER_TEMP/pypi-evidence-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          code=$?
+          printf '%s\n' "$code" > "$folder/collector-exit-status.txt"
+          exit "$code"
+      - name: Retain complete partial or successful evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: public-metadata-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/external-review-${{ github.run_id }}-${{ github.run_attempt }}/
+            ${{ runner.temp }}/pypi-evidence-${{ github.run_id }}-${{ github.run_attempt }}/
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: false

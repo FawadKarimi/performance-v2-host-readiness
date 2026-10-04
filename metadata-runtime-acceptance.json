@@ -1,0 +1,12 @@
+{
+  "schema": "metadata_runtime_acceptance_v1",
+  "scope": "public_pypi_metadata_only",
+  "metadata_runtime_accepted": false,
+  "review_reference": null,
+  "python": null,
+  "parser": null,
+  "training_authorized": false,
+  "research_execution_authorized": false,
+  "artifact_acquisition_authorized": false,
+  "pilot_execution_authorized": false
+}
