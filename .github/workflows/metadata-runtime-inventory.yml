@@ -1,0 +1,71 @@
+name: Metadata runtime inventory (review candidate)
+on:
+  workflow_dispatch:
+    inputs:
+      authorize_inventory_only:
+        description: Explicit permission for local inventory only, not collection
+        type: boolean
+        required: true
+        default: false
+      fresh_included_usage_and_zero_paid_usage:
+        description: Owner has freshly checked included usage and zero-paid controls
+        type: boolean
+        required: true
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: metadata-runtime-inventory
+  cancel-in-progress: false
+jobs:
+  inventory:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      CUDA_VISIBLE_DEVICES: ''
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Verify script and collect local identities only
+        shell: bash
+        env:
+          INVENTORY_PERMISSION: ${{ inputs.authorize_inventory_only }}
+          BILLING_CONFIRMATION: ${{ inputs.fresh_included_usage_and_zero_paid_usage }}
+        run: |
+          set -euo pipefail
+          umask 077
+          status="$RUNNER_TEMP/metadata-runtime-launch-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          mkdir -m 700 "$status"
+          printf '{"status":"started","metadata_runtime_accepted":false,"protected_environment_verified":false}\n' > "$status/launch.json"
+          if [[ "$INVENTORY_PERMISSION" != true || "$BILLING_CONFIRMATION" != true ]]; then
+            printf '%s\n' 'inventory or fresh billing confirmation missing' > "$status/rejection.txt"
+            exit 64
+          fi
+          printf '%s\n' 'cea3b34fe2142f175c9b828850155e1b7645c8a2e5636616d2e1deb72f2a3b1d  scripts/inspect_metadata_runtime.py' > "$status/expected-script.sha256"
+          sha256sum scripts/inspect_metadata_runtime.py > "$status/observed-script.sha256"
+          set +e
+          sha256sum --check "$status/expected-script.sha256" > "$status/hash-check.log" 2>&1
+          hash_code=$?
+          printf '%s\n' "$hash_code" > "$status/hash-check-exit.txt"
+          if [[ "$hash_code" != 0 ]]; then exit "$hash_code"; fi
+          (
+            ulimit -f 1024
+            timeout --signal=TERM --kill-after=5s 60s /usr/bin/python3 -I -B scripts/inspect_metadata_runtime.py --output "$RUNNER_TEMP/metadata-runtime-inventory-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          ) > "$status/stdout.log" 2> "$status/stderr.log"
+          code=$?
+          printf '%s\n' "$code" > "$status/immediate-exit-status.txt"
+          exit "$code"
+      - name: Retain partial or completed inventory and logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: metadata-runtime-inventory-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/metadata-runtime-launch-${{ github.run_id }}-${{ github.run_attempt }}/
+            ${{ runner.temp }}/metadata-runtime-inventory-${{ github.run_id }}-${{ github.run_attempt }}/
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: false
