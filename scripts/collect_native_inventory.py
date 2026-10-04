@@ -31,16 +31,6 @@ def require(value, why):
     if not value: raise ValueError(why)
 
 
-class RuntimeCandidateRejected(ValueError):
-    def __init__(self, path, sources, roots):
-        self.context = {'resolved_candidate_path': path,
-                        'candidate_sources': sorted(sources, key=lambda x: (x['origin'], x['path'])),
-                        'approved_roots': list(roots), 'candidate_hashed': False,
-                        'validation_stage': 'runtime_paths_before_artifact_hashing'}
-        super().__init__('runtime candidate outside approved OS roots; review path before hashing: '
-                         + json.dumps(self.context, sort_keys=True))
-
-
 def mounts(text):
     rows = []
     def unescape(s):
@@ -54,7 +44,10 @@ def mounts(text):
 
 
 class Reader:
-    def __init__(self): self.end = time.monotonic()+180; self.hashed = 0
+    def __init__(self):
+        self.end = time.monotonic()+180
+        self.hashed = 0
+        self.runtime_rejections = []
     def remaining(self):
         left = self.end-time.monotonic(); require(left > 0, 'collection deadline'); return left
     def text(self, path):
@@ -124,6 +117,9 @@ class Reader:
                     primary.args = (*primary.args, 'metadata cleanup unconfirmed: '+repr(cleanup))
     def runtime_paths(self):
         # Conservative Python candidate set; not native dependency closure proof.
+        # Reject outside-root candidates individually, but continue collecting
+        # in-root candidates so one out-of-policy path does not erase the safe
+        # runtime inventory. Rejected candidates are never passed to artifact().
         paths = set()
         sources = {}
         def add_candidate(path, origin):
@@ -147,9 +143,36 @@ class Reader:
             if entry.endswith('.zip') and os.path.isfile(entry): add_candidate(entry, 'sys_path_zip')
         add_candidate(sys.executable, 'sys_executable')
         roots = ('/usr/lib/', '/usr/lib64/', '/usr/local/lib/', '/usr/bin/', '/usr/local/bin/', '/lib/', '/lib64/')
+        approved = []
+        self.runtime_rejections = []
         for path in sorted(paths):
-            if not path.startswith(roots): raise RuntimeCandidateRejected(path, sources[path], roots)
-        return sorted(paths)
+            if path.startswith(roots):
+                approved.append(path)
+                continue
+            self.runtime_rejections.append({
+                'resolved_candidate_path': path,
+                'candidate_sources': sorted(sources[path], key=lambda x: (x['origin'], x['path'])),
+                'approved_roots': list(roots),
+                'candidate_hashed': False,
+                'validation_stage': 'runtime_paths_before_artifact_hashing'})
+        return approved
+
+
+def capture_runtime_candidates(reader, report):
+    """Hash only allowlisted runtime paths and preserve each rejected path."""
+    try:
+        for path in reader.runtime_paths():
+            try:
+                report['runtime_candidates'][path] = reader.artifact(path)
+            except Exception as exc:
+                report['errors'].append({'item': path, 'error': repr(exc)})
+        for context in reader.runtime_rejections:
+            report['errors'].append({
+                'item': 'runtime enumeration',
+                'error': 'runtime candidate outside approved OS roots; candidate not hashed',
+                'context': context})
+    except Exception as exc:
+        report['errors'].append({'item': 'runtime enumeration', 'error': repr(exc)})
 
 
 def collect(reader, identity, stage):
@@ -195,13 +218,7 @@ def collect(reader, identity, stage):
             p = cg[0]['mount'].rstrip('/')+membership[0].rstrip('/')+'/'+suffix
             capture('files', p, lambda p=p: reader.text(p))
     except Exception as exc: report['errors'].append({'item': 'cgroup resolution', 'error': repr(exc)})
-    try:
-        for path in reader.runtime_paths():
-            capture('runtime_candidates', path, lambda p=path: reader.artifact(p))
-    except Exception as exc:
-        error = {'item': 'runtime enumeration', 'error': repr(exc)}
-        if isinstance(exc, RuntimeCandidateRejected): error['context'] = exc.context
-        report['errors'].append(error)
+    capture_runtime_candidates(reader, report)
     report['status'] = 'observed_with_gaps' if report['errors'] else 'observed_not_approved'
     return report
 
