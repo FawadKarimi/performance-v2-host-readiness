@@ -12,6 +12,76 @@ def basic_acl(text):
     need(all('w' not in s.split('::')[1] for s in lines if not s.startswith('user::')),'acl_write_permission')
     return lines
 
+ACL_CODES=frozenset(('extended_or_default_acl_rejected','acl_format','acl_write_permission'))
+ACL_ENTRY_LIMIT=16
+ACL_EVIDENCE_LIMIT=4096
+
+class ACLRejected(ValueError):
+    """Rejected policy check with a bounded diagnostic, never raw command text."""
+    def __init__(self,code,observation):
+        super().__init__(code)
+        self.observation=observation
+
+def acl_diagnostic(raw,anchor,depth,before):
+    """Projection for diagnosis only; never used to accept an ACL."""
+    entries=[];unparsed=omitted=comments=nonblank=0
+    for line in raw.splitlines():
+        line=line.strip()
+        if not line:continue
+        nonblank+=1
+        if line.startswith(b'#'):
+            comments+=1;continue
+        if len(line)>256:
+            unparsed+=1;continue
+        match=re.fullmatch(rb'(default:)?(user|group|other|mask):([0-9]{0,10}):([r-][w-][x-])(?:[ \t]+#effective:([r-][w-][x-]))?',line)
+        if match is None:
+            unparsed+=1;continue
+        default,kind,qualifier,permissions,effective=match.groups()
+        if (qualifier and (kind not in (b'user',b'group') or int(qualifier)>4294967295)):
+            unparsed+=1;continue
+        entry={'default':bool(default),'kind':kind.decode('ascii'),
+               'qualifier':int(qualifier) if qualifier else None,
+               'permissions':permissions.decode('ascii'),
+               'reported_effective':effective.decode('ascii') if effective else None}
+        if len(entries)<ACL_ENTRY_LIMIT:entries.append(entry)
+        else:omitted+=1
+    return {'schema':'rejected_acl_observation_v1','anchor':anchor,'ancestor_depth':depth,
+            'uid':before.st_uid,'gid':before.st_gid,'mode':stat.S_IMODE(before.st_mode),
+            'device':before.st_dev,'inode':before.st_ino,'path_stable':True,
+            'input_bytes':len(raw),'nonblank_lines':nonblank,'comment_lines':comments,
+            'unparsed_lines':unparsed,'omitted_entries':omitted,'entries':entries,
+            'policy_accepted':False,'interpretation':'diagnostic_only_not_security_clearance'}
+
+def safe_acl_diagnostic(value):
+    """Revalidate the closed projection before persistence; discard forged fields."""
+    if type(value) is not dict:return None
+    keys={'schema','anchor','ancestor_depth','uid','gid','mode','device','inode',
+          'path_stable','input_bytes','nonblank_lines','comment_lines',
+          'unparsed_lines','omitted_entries','entries','policy_accepted','interpretation'}
+    if set(value)!=keys:return None
+    if value['schema']!='rejected_acl_observation_v1' or value['anchor'] not in ('runner_temp','workspace'):return None
+    limits={'ancestor_depth':256,'uid':4294967295,'gid':4294967295,'mode':4095,
+            'device':2**64-1,'inode':2**64-1,'input_bytes':16384,
+            'nonblank_lines':16384,'comment_lines':16384,'unparsed_lines':16384,'omitted_entries':16384}
+    if any(type(value[k]) is not int or not 0<=value[k]<=limit for k,limit in limits.items()):return None
+    if value['path_stable'] is not True or value['policy_accepted'] is not False:return None
+    if value['interpretation']!='diagnostic_only_not_security_clearance':return None
+    if type(value['entries']) is not list or len(value['entries'])>ACL_ENTRY_LIMIT:return None
+    entries=[]
+    for row in value['entries']:
+        if type(row) is not dict or set(row)!={'default','kind','qualifier','permissions','reported_effective'}:return None
+        if type(row['default']) is not bool or row['kind'] not in ('user','group','other','mask'):return None
+        q=row['qualifier']
+        if q is not None and (type(q) is not int or not 0<=q<=4294967295 or row['kind'] not in ('user','group')):return None
+        if type(row['permissions']) is not str or re.fullmatch('[r-][w-][x-]',row['permissions']) is None:return None
+        effective=row['reported_effective']
+        if effective is not None and (type(effective) is not str or re.fullmatch('[r-][w-][x-]',effective) is None):return None
+        entries.append(dict(row))
+    if value['nonblank_lines']!=value['comment_lines']+value['unparsed_lines']+value['omitted_entries']+len(entries):return None
+    result=dict(value);result['entries']=entries
+    if len(json.dumps(result,sort_keys=True).encode('ascii'))>ACL_EVIDENCE_LIMIT:return None
+    return result
+
 def mount_for(path,text,device):
     matches=[]
     def decode(s):
@@ -34,8 +104,8 @@ def observe(root,workspace,deadline_seconds=12,command=subprocess.run):
     end=time.monotonic()+deadline_seconds;uid=os.getuid();rows=[];seen=set()
     mounts=Path('/proc/self/mountinfo').read_text()
     need(len(mounts)<=1048576,'mountinfo_size')
-    for target in (Path(root),Path(workspace)):
-        for p in (target,*target.parents):
+    for anchor,target in (('runner_temp',Path(root)),('workspace',Path(workspace))):
+        for depth,p in enumerate((target,*target.parents)):
             if str(p) in seen:continue
             seen.add(str(p));before=p.lstat()
             need(stat.S_ISDIR(before.st_mode) and not p.is_symlink(),'path_not_directory')
@@ -47,8 +117,16 @@ def observe(root,workspace,deadline_seconds=12,command=subprocess.run):
                       capture_output=True,timeout=left,check=False,env={'PATH':'/usr/bin:/bin','LC_ALL':'C'})
             need(time.monotonic()<end,'output_check_deadline')
             need(r.returncode==0 and len(r.stdout)<=16384 and len(r.stderr)<=16384,'acl_unavailable')
-            acl=basic_acl(r.stdout.decode('ascii'))
-            after=p.lstat();need((before.st_dev,before.st_ino,before.st_mode,before.st_uid)==(after.st_dev,after.st_ino,after.st_mode,after.st_uid),'path_changed')
+            rejection=None
+            try:acl=basic_acl(r.stdout.decode('ascii'))
+            except UnicodeDecodeError:rejection='acl_format'
+            except ValueError as exc:
+                if len(exc.args)!=1 or exc.args[0] not in ACL_CODES:raise
+                rejection=exc.args[0]
+            after=p.lstat();need((before.st_dev,before.st_ino,before.st_mode,before.st_uid,before.st_gid)==(after.st_dev,after.st_ino,after.st_mode,after.st_uid,after.st_gid),'path_changed')
+            if rejection:
+                observation=safe_acl_diagnostic(acl_diagnostic(r.stdout,anchor,depth,before))
+                raise ACLRejected(rejection,observation)
             rows.append({'path':str(p),'uid':before.st_uid,'mode':oct(stat.S_IMODE(before.st_mode)),
                          'inode':before.st_ino,'device':before.st_dev,'acl':acl,
                          'mount':mount_for(p,mounts,before.st_dev)})

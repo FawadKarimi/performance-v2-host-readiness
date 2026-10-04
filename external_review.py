@@ -244,7 +244,12 @@ ADMISSION_STAGES=frozenset(('input_validation','dispatch_confirmation',
 
 def admission_failure(exc,stage):
     code='unexpected_error'
-    if isinstance(exc,runtime_acceptance.RuntimeRejected):
+    observation=None
+    if type(exc) is output_security.ACLRejected:
+        if len(exc.args)==1 and type(exc.args[0]) is str and exc.args[0] in output_security.ACL_CODES:
+            code=exc.args[0]
+            if stage=='acl_mount_observation':observation=output_security.safe_acl_diagnostic(exc.observation)
+    elif isinstance(exc,runtime_acceptance.RuntimeRejected):
         candidate=exc.code
         if type(candidate) is str and candidate in ADMISSION_FAILURE_CODES:code=candidate
     elif type(exc) is ValueError and len(exc.args)==1:
@@ -256,10 +261,12 @@ def admission_failure(exc,stage):
     elif isinstance(exc,FileExistsError):code='exclusive_creation_rejected'
     elif isinstance(exc,OSError):code='os_operation_failed'
     elif isinstance(exc,http.client.HTTPException):code='http_transport_failed'
-    return {'schema':'admission_failure_v1','status':'admission_failed',
+    result={'schema':'admission_failure_v1','status':'admission_failed',
             'stage':stage if type(stage) is str and stage in ADMISSION_STAGES else 'unknown_stage',
             'code':code,'protected_environment_verified':False,
             'raw_exception_retained':False}
+    if observation is not None:result['acl_observation']=observation
+    return result
 
 def main():
     env=os.environ;os.umask(0o077)
