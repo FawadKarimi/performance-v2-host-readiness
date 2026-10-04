@@ -50,6 +50,7 @@ jobs:
       COLLECTOR_SHA256: db8ed69ac9cb0db4a2603e9944b2951204eccf5c5f8dc1974c14d19118451a21
       DIAGNOSTIC_SHA256: 7ce499feecb6e8323b989259d42da5db9a2f13fd5df455028929a5ea7f45620f
       BINDING_SHA256: dc7d43921c02b4abf942ac8442843534cd0e0642ea5f523837586778e542bfd3
+      SUPPLEMENTAL_SHA256: 499402b9ac7547e131931eeae8b27a5d5e75edce52ca0b520c40265e8fc37241
       PYTHONDONTWRITEBYTECODE: '1'
     steps:
       - name: Initialize evidence path
@@ -117,6 +118,7 @@ jobs:
             /scripts/collect_native_inventory.py
             /scripts/diagnose_sitecustomize.py
             /scripts/sitecustomize_binding.py
+            /scripts/supplemental_host_evidence.py
             /.github/workflows/pre-provision-inventory.yml
 
       - name: Verify exact bytes then collect once
@@ -135,6 +137,9 @@ jobs:
               script = pathlib.Path('scripts') / filename
               assert script.is_file() and not script.is_symlink(), 'script must be regular'
               assert hashlib.sha256(script.read_bytes()).hexdigest() == os.environ[key], 'reviewed auxiliary script hash mismatch'
+          script = pathlib.Path('scripts/supplemental_host_evidence.py')
+          assert script.is_file() and not script.is_symlink(), 'supplemental script must be regular'
+          assert hashlib.sha256(script.read_bytes()).hexdigest() == os.environ['SUPPLEMENTAL_SHA256'], 'reviewed supplemental script hash mismatch'
           (root / 'workflow.yml').write_bytes(pathlib.Path('.github/workflows/pre-provision-inventory.yml').read_bytes())
           PY
           printf '%s\n' '/usr/bin/python3 -I -S -B scripts/collect_native_inventory.py --collect-read-only --stage pre-provision' > "$EVIDENCE/command.txt"
@@ -174,6 +179,22 @@ jobs:
           date --utc --iso-8601=ns > "$EVIDENCE/diagnostic-ended-at.txt"
           /usr/bin/python3 -I -S -B scripts/sitecustomize_binding.py after
 
+      - name: Capture read-only package and cgroup evidence
+        id: supplemental
+        if: ${{ always() && steps.collect.outcome == 'success' && steps.binding_gate.outcome == 'success' && (steps.diagnostic.outcome == 'success' || steps.diagnostic.outcome == 'skipped') }}
+        timeout-minutes: 1
+        run: |
+          printf '%s\n' '/usr/bin/python3 -I -S -B scripts/supplemental_host_evidence.py' > "$EVIDENCE/supplemental-command.txt"
+          date --utc --iso-8601=ns > "$EVIDENCE/supplemental-started-at.txt"
+          ulimit -f 4096
+          set +e
+          /usr/bin/timeout --signal=TERM --kill-after=2s 30s /usr/bin/python3 -I -S -B scripts/supplemental_host_evidence.py > "$EVIDENCE/supplemental-stdout.log" 2> "$EVIDENCE/supplemental-stderr.log"
+          rc=$?
+          printf '%s\n' "$rc" > "$EVIDENCE/supplemental-exit-status.txt"
+          set -e
+          date --utc --iso-8601=ns > "$EVIDENCE/supplemental-ended-at.txt"
+          test "$rc" -eq 0 || test "$rc" -eq 2
+
       - name: Seal captured evidence without rewriting raw output
         if: always()
         id: seal
@@ -183,6 +204,7 @@ jobs:
           COLLECT_OUTCOME: ${{ steps.collect.outcome }}
           GATE_OUTCOME: ${{ steps.binding_gate.outcome }}
           DIAGNOSTIC_OUTCOME: ${{ steps.diagnostic.outcome }}
+          SUPPLEMENTAL_OUTCOME: ${{ steps.supplemental.outcome }}
         run: |
           /usr/bin/python3 -I -S -B - <<'PY'
           import hashlib, json, os, pathlib, subprocess, traceback
@@ -190,9 +212,10 @@ jobs:
           root.mkdir(mode=0o700, exist_ok=True)
           summary = {'status': 'incomplete_or_failed', 'execution_approved': False, 'security_approved': False,
                      'dependencies_approved': False, 'pilot_execution_authorized': False, 'stage_b': 'paused',
-                     'step_outcomes': {k: os.environ[k] for k in ('ADMISSION_OUTCOME', 'CHECKOUT_OUTCOME', 'COLLECT_OUTCOME', 'GATE_OUTCOME')}}
+                     'step_outcomes': {k: os.environ[k] for k in ('ADMISSION_OUTCOME', 'CHECKOUT_OUTCOME', 'COLLECT_OUTCOME', 'GATE_OUTCOME', 'SUPPLEMENTAL_OUTCOME')}}
           try:
               assert all(v == 'success' for v in summary['step_outcomes'].values()), 'orchestration step failed/skipped'
+              assert os.environ['SUPPLEMENTAL_OUTCOME'] == 'success', 'supplemental evidence capture failed/skipped'
               rc = int((root / 'exit-status.txt').read_text())
               summary['immediate_wrapper_exit_status'] = rc
               assert rc in (0, 2), 'collector failed or timed out; raw output retained'
@@ -204,6 +227,25 @@ jobs:
                   assert report[key] is False, key
               assert report['stage_b'] == 'paused'
               assert report['status'] == {0: 'observed_not_approved', 2: 'observed_with_gaps'}[rc]
+              extra = json.loads((root / 'supplemental-host-evidence.json').read_bytes())
+              extra_rc = int((root / 'supplemental-exit-status.txt').read_text())
+              assert extra_rc in (0, 2), 'supplemental evidence failed/timed out; partial output retained'
+              assert extra['schema'] == 'pv2_supplemental_host_evidence_v1'
+              assert extra['identity'] == json.loads((root / 'same-job-before.json').read_bytes())['identity']
+              assert extra['script_sha256'] == os.environ['SUPPLEMENTAL_SHA256']
+              assert extra['status'] == {0: 'observed_not_approved', 2: 'observed_with_gaps'}[extra_rc]
+              links = extra['bindings']
+              assert links['inventory_report_sha256'] == hashlib.sha256((root / 'raw.json').read_bytes()).hexdigest()
+              assert links['inventory_binding_sha256'] == hashlib.sha256((root / 'inventory-binding.json').read_bytes()).hexdigest()
+              assert links['inventory_exit_sha256'] == hashlib.sha256((root / 'exit-status.txt').read_bytes()).hexdigest()
+              if json.loads((root / 'inventory-binding.json').read_bytes())['diagnostic_required']:
+                  assert links['diagnostic_binding_sha256'] == hashlib.sha256((root / 'diagnostic-binding.json').read_bytes()).hexdigest()
+                  diagnostic_binding = json.loads((root / 'diagnostic-binding.json').read_bytes())
+                  assert links['diagnostic_report_sha256'] == diagnostic_binding['diagnostic_report_sha256']
+                  assert links['diagnostic_exit_sha256'] == hashlib.sha256((root / 'diagnostic-exit-status.txt').read_bytes()).hexdigest()
+              for key in ('execution_approved', 'security_approved', 'dependencies_approved', 'pilot_execution_authorized'):
+                  assert extra[key] is False, key
+              assert extra['stage_b'] == 'paused' and extra['read_only'] is True
               binding_script = pathlib.Path('scripts/sitecustomize_binding.py')
               assert hashlib.sha256(binding_script.read_bytes()).hexdigest() == os.environ['BINDING_SHA256'], 'binding script changed'
               subprocess.run(['/usr/bin/python3', '-I', '-S', '-B', str(binding_script), 'verify'], check=True, timeout=10)
@@ -213,6 +255,8 @@ jobs:
               summary['diagnostic_outcome'] = os.environ['DIAGNOSTIC_OUTCOME']
               summary['status'] = report['status']
               summary['reported_gap_count'] = len(report['errors'])
+              summary['supplemental_status'] = extra['status']
+              summary['supplemental_gap_count'] = len(extra['errors'])
           except Exception:
               summary['error'] = traceback.format_exc()
           (root / 'summary.json').write_text(json.dumps(summary, sort_keys=True, indent=2) + '\n')
