@@ -10,7 +10,7 @@
     "authorization-TEMPLATE.json": "8e69a6373d6d19f0f1d720f6d5612f46ba2a0a7d649471bd8a3a2964f402a71d",
     "collector.py": "13c6675e0521cf526df13cb1915b2550c5dbec677a22eac0f6be8ab3b7964639",
     "external-review-TEMPLATE.json": "9507a6c13ba0eab7da43d5fef9629e626e849a04f57dbce9bc6163e681ddf3ad",
-    "external_review.py": "77f8da52fb460719c50cac348768b52048f45ee94757a73faea1fffaa995d63d",
+    "external_review.py": "b294fcc8ee2392dbad2080c647d49dcd03cdb2b9875d9d777937be85a9487916",
     "metadata-runtime-acceptance.json": "b650feec2b4f59006618385c0dd5eb00f56fbda9a9e19c84d0fdee68ffb2ae40",
     "output_security.py": "7366173ae697bfea96a9e37693fa37ead4385c0dafe8c287c1efd778c47eee5a",
     "request-manifest.json": "587b0eb7e124783ec6a62d7f316fdd263f40cf3b9130b64eaf6f8855395dd551",
@@ -23,8 +23,9 @@
     "test_external_review.py": "51a3d6b49c80818d7a2b194ec762ea22d124cc022ca291081eb1f83045f43807",
     "test_namespace_correction.py": "db4f765852d113c54f6e37fb928e56d8d438f16e5b1bdd99d5e5e018c42fef18",
     "test_node_identity.cjs": "a3b80c2ac682eea9dd0c125c4488ff842ed06ffa0f542659ad5e1ecb09fa42e9",
-    "test_runtime_admission.py": "dfc5514b6e45bb378c405b0b772e9313cfa7d77bb61c49968a3d50e559ec0836",
+    "test_runtime_admission.py": "7fde267a8254f2088f84baebbbd1c539dedea190236732a2e6cf91a6a70726d2",
     "test_runtime_inventory.py": "b32177d2e15a5c4d010a97d5d3dec7055e34f4e37e055f0a38984d8d665470e5",
-    "worker_diagnostics.py": "f727b5d6a782bf313fe1ba00ca326d08769a384b87ef1cf1c14eb61ef6706427"
+    "worker_diagnostics.py": "f727b5d6a782bf313fe1ba00ca326d08769a384b87ef1cf1c14eb61ef6706427",
+    "test_admission_diagnostics.py": "77a4391945f388a8187228e3c9e8bd930c5f39b993acdf027b243cc25f15ef74"
   }
 }

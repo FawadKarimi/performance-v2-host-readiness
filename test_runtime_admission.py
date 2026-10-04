@@ -46,9 +46,10 @@ class Tests(unittest.TestCase):
         self.record_path.write_text(json.dumps(self.record))
         return digest(self.record_path.read_bytes())
     def test_unaccepted_runtime_rejected_before_observation(self):
-        raw=(ROOT/'metadata-runtime-acceptance.json').read_bytes()
+        self.record['metadata_runtime_accepted']=False
+        h=self.save_record()
         with self.assertRaisesRegex(runtime.RuntimeRejected,'runtime_not_accepted'):
-            runtime.verify_record(ROOT/'metadata-runtime-acceptance.json',digest(raw),observe=lambda:self.fail('observed before approval'))
+            runtime.verify_record(self.record_path,h,observe=lambda:self.fail('observed before approval'))
     def test_python_and_parser_mismatch(self):
         h=self.save_record()
         for part in ('python','parser'):
