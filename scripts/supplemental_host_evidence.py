@@ -10,6 +10,11 @@ from pathlib import Path
 import posixpath
 import re
 import stat
+import subprocess
+import selectors
+import signal
+import time
+from types import SimpleNamespace
 import sys
 
 LINK = '/usr/lib/python3.12/sitecustomize.py'
@@ -167,6 +172,40 @@ def hash_target():
             'target_contents_disclosed': False, 'target_imported_or_executed': False}
 
 
+def bounded_query(argv, bound=MAX_METADATA_BYTES, timeout=5):
+    """Drain a fixed metadata command with a live byte cap and wall deadline."""
+    proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                            stdin=subprocess.DEVNULL, start_new_session=True)
+    output = bytearray()
+    deadline = time.monotonic() + timeout
+    try:
+        with selectors.DefaultSelector() as selector:
+            os.set_blocking(proc.stdout.fileno(), False)
+            selector.register(proc.stdout, selectors.EVENT_READ)
+            while selector.get_map():
+                remaining = deadline - time.monotonic()
+                require(remaining > 0, 'conffile metadata query timed out')
+                for key, _ in selector.select(remaining):
+                    block = os.read(key.fd, min(65536, bound + 1 - len(output)))
+                    if not block:
+                        selector.unregister(key.fileobj)
+                    else:
+                        output.extend(block)
+                        require(len(output) <= bound, 'conffile metadata output exceeded bound')
+        remaining = deadline - time.monotonic()
+        require(remaining > 0, 'conffile metadata query timed out')
+        code = proc.wait(timeout=remaining)
+        return SimpleNamespace(returncode=code, stdout=bytes(output))
+    finally:
+        # Kill the owned process group even if the leader exited leaving children.
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        proc.stdout.close()
+        proc.wait(timeout=1)
+
+
 def package_integrity(raw_report):
     package_metadata = raw_report.get('metadata', {}).get('packages', {})
     package_text = package_metadata.get('text') if isinstance(package_metadata, dict) else None
@@ -179,7 +218,26 @@ def package_integrity(raw_report):
     require(st.st_uid == 0 and stat.S_IMODE(st.st_mode) & 0o022 == 0,
             'installed package checksum record has unexpected owner/mode')
     text = raw.decode('utf-8', errors='strict')
-    expected = package_md5_record(text, 'etc/python3.12/sitecustomize.py')
+    relative = 'etc/python3.12/sitecustomize.py'
+    matching = [line for line in text.splitlines()
+                if len(line.split(None, 1)) == 2 and line.split(None, 1)[1].lstrip('*') == relative]
+    conffile_record = None
+    if matching:
+        expected = package_md5_record(text, relative)
+        checksum_source = 'installed md5sums'
+    else:
+        # dpkg stores configuration-file checksums separately from md5sums.
+        result = bounded_query(['/usr/bin/dpkg-query', '--show', '--showformat=${Conffiles}', PACKAGE])
+        require(result.returncode == 0 and len(result.stdout) <= MAX_METADATA_BYTES,
+                'conffile metadata query failed or exceeded bound')
+        conffile_record = result.stdout.decode('utf-8', errors='strict')
+        rows = [line.split() for line in conffile_record.splitlines()
+                if line.split() and line.split()[0] == TARGET]
+        require(len(rows) == 1 and len(rows[0]) == 2 and
+                re.fullmatch(r'[0-9a-fA-F]{32}', rows[0][1]),
+                'expected exactly one active conffile checksum record')
+        expected = rows[0][1].lower()
+        checksum_source = 'installed dpkg Conffiles'
     observed = hash_target()
     observed['package'] = PACKAGE
     observed['package_version'] = package_rows[0][1]
@@ -187,10 +245,13 @@ def package_integrity(raw_report):
     observed['installed_manifest'] = PACKAGE_MANIFEST
     observed['installed_manifest_sha256'] = hashlib.sha256(raw).hexdigest()
     observed['installed_manifest_metadata'] = {'uid': st.st_uid, 'mode': oct(stat.S_IMODE(st.st_mode))}
+    observed['checksum_source'] = checksum_source
+    observed['conffile_metadata_sha256'] = (hashlib.sha256(conffile_record.encode()).hexdigest()
+                                             if conffile_record is not None else None)
     observed['manifest_expected_md5'] = expected
     observed['local_package_record_match'] = observed['target_md5'] == expected
     observed['publisher_signature_verified'] = False
-    observed['interpretation'] = ('matches the installed local dpkg checksum record; this is not independent '
+    observed['interpretation'] = ('comparison against the installed local dpkg checksum record; this is not independent '
                                   'publisher/signature verification')
     return observed
 
@@ -216,9 +277,16 @@ def cgroup_observation(raw_report):
                 entry['read_errors'][name] = type(exc).__name__
         levels.append(entry)
     required_fields = ('cpu.max', 'memory.max', 'memory.swap.max', 'pids.max')
+    # Only the actual hierarchy root is exempt, never a mounted subtree root.
+    root_exemptions = [{'path': x['path'], 'file': name,
+                        'reason': 'cgroup-v2 hierarchy root has no resource-limit interface'}
+                       for x in levels for name in required_fields
+                       if x['path'] == mounts[0]['mount'] and mounts[0]['root'] == '/'
+                       and x['read_errors'].get(name) == 'FileNotFoundError']
+    exempt = {(x['path'], x['file']) for x in root_exemptions}
     missing_critical = [{'path': x['path'], 'file': name}
                         for x in levels for name in required_fields
-                        if name not in x['limits']]
+                        if name not in x['limits'] and (x['path'], name) not in exempt]
     if 'cpuset.cpus.effective' not in levels[-1]['limits']:
         missing_critical.append({'path': levels[-1]['path'], 'file': 'cpuset.cpus.effective'})
     process_membership_after, _ = read_bounded('/proc/self/cgroup', MAX_METADATA_BYTES)
@@ -232,6 +300,7 @@ def cgroup_observation(raw_report):
             'effective_caps': effective_caps([x['limits'] for x in levels]),
             'critical_limit_chain_complete': not missing_critical,
             'missing_critical_limits': missing_critical,
+            'expected_root_interface_absences': root_exemptions,
             'child_cgroup_creation_tested': False, 'resource_controls_mutated': False}
 
 
@@ -294,8 +363,11 @@ def main():
               'read_only': True, 'docker_invoked': False, 'training_performed': False}
     try:
         record['local_package_record_comparison'] = package_integrity(raw)
+        if not record['local_package_record_comparison']['local_package_record_match']:
+            record['errors'].append({'item': 'sitecustomize local package record comparison',
+                                     'error': 'installed checksum does not match observed target'})
     except Exception as exc:
-        record['errors'].append({'item': 'sitecustomize local package record comparison', 'error': type(exc).__name__})
+        record['errors'].append({'item': 'sitecustomize local package record comparison', 'error': type(exc).__name__, 'reason': str(exc)[:240]})
     try:
         record['cgroup'] = cgroup_observation(raw)
         if not record['cgroup']['critical_limit_chain_complete']:
@@ -305,7 +377,7 @@ def main():
         if not record['cgroup']['supplemental_membership_stable_during_observation']:
             record['errors'].append({'item': 'cgroup ancestry', 'error': 'supplemental process membership changed during observation'})
     except Exception as exc:
-        record['errors'].append({'item': 'cgroup ancestry', 'error': type(exc).__name__})
+        record['errors'].append({'item': 'cgroup ancestry', 'error': type(exc).__name__, 'reason': str(exc)[:240]})
     record['status'] = 'observed_not_approved' if not record['errors'] else 'observed_with_gaps'
     output = root / 'supplemental-host-evidence.json'
     with output.open('x', encoding='utf-8', newline='\n') as f:

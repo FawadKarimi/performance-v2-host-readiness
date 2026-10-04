@@ -166,9 +166,58 @@ class SupplementalEvidenceTests(unittest.TestCase):
         self.assertFalse(result['publisher_signature_verified'])
         self.assertEqual(result['package_version'], '3.12.3-1')
 
+    def test_conffile_fallback_and_reject_obsolete_duplicate_or_failed_query(self):
+        raw = {'metadata': {'packages': {'text': evidence.PACKAGE +
+               '\t3.12.3-1\tamd64\tpython3.12\t3.12.3-1\tinstalled\n'}}}
+        st = SimpleNamespace(st_uid=0, st_mode=0o100644)
+        checksum = 'a' * 32
+        good = (' ' + evidence.TARGET + ' ' + checksum + '\n').encode()
+        with patch.object(evidence, 'read_bounded', return_value=(b'', st)), \
+             patch.object(evidence, 'hash_target', return_value={'target_md5': checksum}), \
+             patch.object(evidence, 'bounded_query', return_value=SimpleNamespace(returncode=0, stdout=good)) as query:
+            r = evidence.package_integrity(raw)
+        self.assertTrue(r['local_package_record_match'])
+        self.assertEqual(r['checksum_source'], 'installed dpkg Conffiles')
+        self.assertFalse(r['publisher_signature_verified'])
+        self.assertEqual(query.call_args.args[0], ['/usr/bin/dpkg-query', '--show', '--showformat=${Conffiles}', evidence.PACKAGE])
+        for output, code in [(good + good, 0), (good.rstrip() + b' obsolete\n', 0), (b'', 1)]:
+            with patch.object(evidence, 'read_bounded', return_value=(b'', st)), \
+                 patch.object(evidence, 'bounded_query', return_value=SimpleNamespace(returncode=code, stdout=output)), \
+                 self.assertRaises(ValueError):
+                evidence.package_integrity(raw)
+
+    def test_root_absence_exemption_is_not_subtree_or_permission_exemption(self):
+        def observe(root, error):
+            raw = {'mounts': [{'filesystem': 'cgroup2', 'mount': '/sys/fs/cgroup', 'root': root}],
+                   'files': {'/proc/self/cgroup': '0::' + root.rstrip('/') + '/job\n'}}
+            def read(path, bound):
+                if path == '/proc/self/cgroup':
+                    return raw['files'][path].encode(), SimpleNamespace()
+                if path.rsplit('/', 1)[0] == '/sys/fs/cgroup' and not path.endswith('cpuset.cpus.effective'):
+                    raise error(path)
+                name = path.rsplit('/', 1)[-1]
+                value = '0-1' if name == 'cpuset.cpus.effective' else ('max 100000' if name == 'cpu.max' else 'max')
+                return value.encode(), SimpleNamespace()
+            with patch.object(evidence, 'read_bounded', side_effect=read):
+                return evidence.cgroup_observation(raw)
+        r = observe('/', FileNotFoundError)
+        self.assertTrue(r['critical_limit_chain_complete'])
+        self.assertEqual(len(r['expected_root_interface_absences']), 4)
+        for root, error in [('/subtree', FileNotFoundError), ('/', PermissionError)]:
+            self.assertFalse(observe(root, error)['critical_limit_chain_complete'])
+
+    @unittest.skipUnless(__import__('sys').platform == 'linux', 'Linux pipe supervision')
+    def test_bounded_query_success_oversize_timeout_and_nonzero(self):
+        import sys
+        self.assertEqual(evidence.bounded_query([sys.executable, '-c', "print('ok')"], bound=32).stdout, b'ok\n')
+        self.assertEqual(evidence.bounded_query([sys.executable, '-c', 'raise SystemExit(3)']).returncode, 3)
+        for code, bound, timeout in [("print('x'*10000)", 8, 2), ('import time; time.sleep(5)', 32, .05)]:
+            with self.assertRaises(ValueError):
+                evidence.bounded_query([sys.executable, '-c', code], bound=bound, timeout=timeout)
+
     def test_no_dependency_or_mutating_backend(self):
         source = SCRIPT.read_text()
-        self.assertNotRegex(source, r'(?im)^\s*(?:import|from)\s+(?:subprocess|requests|urllib)\b')
+        self.assertNotRegex(source, r'(?im)^\s*(?:import|from)\s+(?:requests|urllib)\b')
         self.assertIn("'docker_invoked': False", source)
         self.assertIn("'child_cgroup_creation_tested': False", source)
         self.assertIn("'resource_controls_mutated': False", source)
