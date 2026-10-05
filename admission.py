@@ -79,7 +79,10 @@ def load_grant(manifest_path,receipt_path,expected_raw_hash,source_dir,output,en
     policy=output_policy(env['RUNNER_TEMP'],env['GITHUB_WORKSPACE'],output,worker=worker)
     if 'external_review' in receipt:
         import external_review,output_security
-        grant['fresh_output_checks']=output_security.observe(env['RUNNER_TEMP'],env['GITHUB_WORKSPACE'])
-        external_review.reconstruct(receipt,receipt_path,grant['context'],worker)
+        record=external_review.reconstruct(receipt,receipt_path,grant['context'],worker)
+        kwargs={'allow_home_default_acl':True} if record.get('home_default_acl_disposition_accepted') is True else {}
+        grant['fresh_output_checks']=output_security.observe(env['RUNNER_TEMP'],env['GITHUB_WORKSPACE'],**kwargs)
+        grant['created_admission_evidence']=output_security.verify_evidence_folder(Path(receipt_path).parent)
+        grant['verify_created_acl']=True
     grant['output_policy']=policy; grant['output']=str(output)
     return grant

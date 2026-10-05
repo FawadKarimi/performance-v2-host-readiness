@@ -1,5 +1,5 @@
 """Fresh fail-closed Linux ACL/mount observations; no repairs."""
-import json,os,re,stat,subprocess,time
+import itertools,json,os,re,stat,subprocess,time
 from pathlib import Path
 
 def need(ok,code):
@@ -12,7 +12,30 @@ def basic_acl(text):
     need(all('w' not in s.split('::')[1] for s in lines if not s.startswith('user::')),'acl_write_permission')
     return lines
 
-ACL_CODES=frozenset(('extended_or_default_acl_rejected','acl_format','acl_write_permission'))
+def reviewed_home_acl(text,path,depth,before,accepted=False):
+    """One explicit inheritance disposition; basic access policy is unchanged."""
+    try:return basic_acl(text),None
+    except ValueError as exc:
+        if exc.args!=('extended_or_default_acl_rejected',):raise
+    uid=os.getuid();effective_uid=os.geteuid()
+    need(accepted is True and Path(path)==Path('/home') and depth>0,
+         'extended_or_default_acl_rejected')
+    need(uid==effective_uid and uid>0 and before.st_uid==before.st_gid==0
+         and stat.S_IMODE(before.st_mode)==0o755,'home_acl_identity_rejected')
+    # No lexical normalization, ignored comments, duplicate rows or effective
+    # annotations. Fresh UID comparison, never a hard-coded runner UID.
+    lines=[s.strip() for s in text.splitlines() if s.strip()]
+    access=['user::rwx','group::r-x','other::r-x']
+    defaults=['default:user::rwx',f'default:user:{uid}:rwx',
+              'default:group::r-x','default:mask::rwx','default:other::r-x']
+    need(len(lines)==8 and set(lines)==set(access+defaults),'home_acl_pattern_rejected')
+    basic_acl('\n'.join(access))
+    return access,{'policy':'exact_home_default_acl_v1','path':'/home',
+                  'real_uid':uid,'effective_uid':effective_uid,'default_entries':defaults,
+                  'interpretation':'inheritance_only_current_access_remains_basic'}
+
+ACL_CODES=frozenset(('extended_or_default_acl_rejected','acl_format','acl_write_permission',
+                     'home_acl_identity_rejected','home_acl_pattern_rejected'))
 ACL_ENTRY_LIMIT=16
 ACL_EVIDENCE_LIMIT=4096
 
@@ -100,7 +123,7 @@ def mount_for(path,text,device):
     return {'mountpoint':str(point),'mount_id':a[0],'device':a[2],'filesystem':b[0],
             'options':a[5].split(','),'super_options':b[2].split(','),'optional_fields':a[6:]}
 
-def observe(root,workspace,deadline_seconds=12,command=subprocess.run):
+def observe(root,workspace,deadline_seconds=12,command=subprocess.run,allow_home_default_acl=False):
     end=time.monotonic()+deadline_seconds;uid=os.getuid();rows=[];seen=set()
     mounts=Path('/proc/self/mountinfo').read_text()
     need(len(mounts)<=1048576,'mountinfo_size')
@@ -112,13 +135,15 @@ def observe(root,workspace,deadline_seconds=12,command=subprocess.run):
             need(before.st_uid in (0,uid) and before.st_mode&0o022==0,'path_owner_mode')
             left=end-time.monotonic();need(left>0,'output_check_deadline')
             # No installation/fallback when getfacl is absent. Numeric output;
-            # inherited/default/named ACLs are rejected, not silently ignored.
+            # Default/named ACLs remain rejected except for the explicit exact
+            # /home inheritance disposition. No host ACL is changed.
             r=command(['/usr/bin/getfacl','--absolute-names','--numeric','--omit-header','--',str(p)],
                       capture_output=True,timeout=left,check=False,env={'PATH':'/usr/bin:/bin','LC_ALL':'C'})
             need(time.monotonic()<end,'output_check_deadline')
             need(r.returncode==0 and len(r.stdout)<=16384 and len(r.stderr)<=16384,'acl_unavailable')
             rejection=None
-            try:acl=basic_acl(r.stdout.decode('ascii'))
+            exception=None
+            try:acl,exception=reviewed_home_acl(r.stdout.decode('ascii'),p,depth,before,allow_home_default_acl)
             except UnicodeDecodeError:rejection='acl_format'
             except ValueError as exc:
                 if len(exc.args)!=1 or exc.args[0] not in ACL_CODES:raise
@@ -127,9 +152,52 @@ def observe(root,workspace,deadline_seconds=12,command=subprocess.run):
             if rejection:
                 observation=safe_acl_diagnostic(acl_diagnostic(r.stdout,anchor,depth,before))
                 raise ACLRejected(rejection,observation)
-            rows.append({'path':str(p),'uid':before.st_uid,'mode':oct(stat.S_IMODE(before.st_mode)),
+            row={'path':str(p),'uid':before.st_uid,'mode':oct(stat.S_IMODE(before.st_mode)),
                          'inode':before.st_ino,'device':before.st_dev,'acl':acl,
-                         'mount':mount_for(p,mounts,before.st_dev)})
+                         'mount':mount_for(p,mounts,before.st_dev)}
+            if exception is not None:row['reviewed_default_acl_exception']=exception
+            rows.append(row)
     need(Path(root).stat().st_uid==uid,'output_root_uid')
     return {'paths':rows,'same_uid_isolation':False,'acl_mount_checked':True,
             'trust_requirement':'owner_accepts_trusted_ephemeral_job_no_hostile_same_uid'}
+
+def verify_created(path,fd=None,command=subprocess.run,deadline_seconds=3):
+    """Actual evidence object, never the ancestor exception; no repairs."""
+    path=Path(path);before=path.lstat();uid=os.getuid()
+    is_dir=stat.S_ISDIR(before.st_mode);is_file=stat.S_ISREG(before.st_mode)
+    need(uid==os.geteuid() and before.st_uid==uid and (is_dir or is_file)
+         and stat.S_IMODE(before.st_mode)==(0o700 if is_dir else 0o600),
+         'created_evidence_identity_rejected')
+    identity=lambda s:(s.st_dev,s.st_ino,s.st_mode,s.st_uid,s.st_gid,s.st_nlink)
+    if fd is not None:need(identity(os.fstat(fd))==identity(before),'created_evidence_changed')
+    if is_file:need(before.st_nlink==1,'created_evidence_identity_rejected')
+    end=time.monotonic()+deadline_seconds
+    r=command(['/usr/bin/getfacl','--absolute-names','--numeric','--omit-header','--',str(path)],
+              capture_output=True,timeout=deadline_seconds,check=False,env={'PATH':'/usr/bin:/bin','LC_ALL':'C'})
+    need(time.monotonic()<end and r.returncode==0 and len(r.stdout)<=16384
+         and len(r.stderr)<=16384,'acl_unavailable')
+    try:acl=basic_acl(r.stdout.decode('ascii'))
+    except (UnicodeDecodeError,ValueError):raise ValueError('created_evidence_acl_rejected') from None
+    expected={'user::rwx','group::---','other::---'} if is_dir else {'user::rw-','group::---','other::---'}
+    need(set(acl)==expected,'created_evidence_acl_rejected')
+    after=path.lstat();need(identity(before)==identity(after),'created_evidence_changed')
+    if fd is not None:need(identity(os.fstat(fd))==identity(after),'created_evidence_changed')
+    return {'path':str(path),'uid':uid,'mode':oct(stat.S_IMODE(before.st_mode)),
+            'inode':before.st_ino,'device':before.st_dev,'acl':acl,
+            'default_acl_present':False,'path_stable':True}
+
+def verify_evidence_folder(folder):
+    folder=Path(folder)
+    end=time.monotonic()+12
+    def check(path):
+        left=end-time.monotonic();need(left>0,'output_check_deadline')
+        row=verify_created(path,deadline_seconds=min(3,left))
+        need(time.monotonic()<end,'output_check_deadline')
+        return row
+    rows=[check(folder)]
+    children=sorted(itertools.islice(folder.iterdir(),17))
+    need(len(children)<=16,'created_evidence_count_rejected')
+    for path in children:
+        need(stat.S_ISREG(path.lstat().st_mode),'created_evidence_identity_rejected')
+        rows.append(check(path))
+    return rows

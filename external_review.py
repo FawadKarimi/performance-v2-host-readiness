@@ -36,6 +36,7 @@ def validate(record,context,run,hashes,runtime_hash,now,env):
     need(record.get('approval_mechanism')=='externally_reviewed_record','external_mechanism')
     need(all(record.get(k) is True for k in TRUE_FLAGS),'external_approval_missing')
     need(all(record.get(k) is False for k in FALSE_FLAGS),'external_scope_expansion')
+    need(type(record.get('home_default_acl_disposition_accepted',False)) is bool,'home_acl_disposition_invalid')
     need(record.get('scope')=='14_pypi_discovery_gets_only','external_scope')
     need(record.get('owner_login')=='FawadKarimi' and record.get('owner_id')==OWNER_ID,'external_owner')
     need(all(isinstance(record.get(k),str) and record[k] for k in ('review_reference','security_review_reference','compatibility_evidence_sha256')),'external_evidence_missing')
@@ -110,6 +111,7 @@ def reconstruct(receipt,receipt_path,context,worker):
     need(reserved=={'record_sha256':record_hash,'context':context},'external_reservation_mismatch')
     if worker:need(decode((folder/'parent-claimed.json').read_bytes())==reserved,'external_parent_claim')
     write_new(folder/('worker-claimed.json' if worker else 'parent-claimed.json'),reserved)
+    return record
 
 def issue(record_raw,expected_hash,folder,context,env,fetch=api_run,observe_runtime=None,observe_output=output_security.observe,progress=None):
     mark=(lambda stage:None) if progress is None else progress
@@ -118,6 +120,7 @@ def issue(record_raw,expected_hash,folder,context,env,fetch=api_run,observe_runt
     record=decode(record_raw)
     # Reject default/expired inputs before the one GitHub API request.
     need(all(record.get(k) is True for k in TRUE_FLAGS),'external_approval_missing')
+    need(type(record.get('home_default_acl_disposition_accepted',False)) is bool,'home_acl_disposition_invalid')
     need(utc(record['issued_utc'])<=dt.datetime.now(dt.timezone.utc)<utc(record['expires_utc']),'external_expired')
     root=Path(__file__).parent
     mark('dispatch_confirmation')
@@ -135,7 +138,9 @@ def issue(record_raw,expected_hash,folder,context,env,fetch=api_run,observe_runt
     mark('output_path_validation')
     admission.output_policy(env['RUNNER_TEMP'],env['GITHUB_WORKSPACE'],out)
     mark('acl_mount_observation')
-    paths=observe_output(env['RUNNER_TEMP'],env['GITHUB_WORKSPACE'])
+    kwargs={'allow_home_default_acl':True} if record.get('home_default_acl_disposition_accepted') is True else {}
+    paths=observe_output(env['RUNNER_TEMP'],env['GITHUB_WORKSPACE'],**kwargs)
+    paths['created_admission_evidence']=output_security.verify_evidence_folder(folder)
     mark('output_evidence_write')
     write_new(folder/'output-checks.json',paths)
     # Bind only reviewed fields needed by reconstruct; never API credentials.
@@ -169,6 +174,13 @@ def issue(record_raw,expected_hash,folder,context,env,fetch=api_run,observe_runt
 
 # Closed projections only: never persist raw messages, tracebacks or env values.
 ADMISSION_FAILURE_CODES=frozenset((
+    'home_acl_disposition_invalid',
+    'home_acl_identity_rejected',
+    'home_acl_pattern_rejected',
+    'created_evidence_identity_rejected',
+    'created_evidence_acl_rejected',
+    'created_evidence_changed',
+    'created_evidence_count_rejected',
     'acl_format',
     'acl_unavailable',
     'acl_write_permission',

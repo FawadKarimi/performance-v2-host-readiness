@@ -229,8 +229,10 @@ def parse_index(raw,project,cutoff):
             'support_security_and_target_tags':'unresolved','selected_versions':None,'artifact_bytes_verified':False}
 
 class Evidence:
-    def __init__(self,path):
+    def __init__(self,path,verify_created=None):
         self.path=Path(path); self.path.mkdir(mode=0o700,exist_ok=False); self.written=0
+        self.verify_created=verify_created
+        if self.verify_created is not None:self.verify_created(self.path)
     def account(self,n):
         require(self.written+n<=128*1024**2-65536,'evidence output reservation exceeded')
         self.written+=n
@@ -242,7 +244,17 @@ class Evidence:
     def open_file(self,name):
         require(Path(name).name==name and name not in ('.','..'),'evidence filename invalid')
         fd=os.open(self.path/name,os.O_WRONLY|os.O_CREAT|os.O_EXCL|getattr(os,'O_NOFOLLOW',0),0o600)
+        try:
+            if self.verify_created is not None:self.verify_created(self.path/name,fd=fd)
+        except BaseException:
+            os.close(fd);raise
         return os.fdopen(fd,'wb')
+
+def created_verifier(grant):
+    if grant is not None and grant.get('verify_created_acl') is True:
+        import output_security
+        return output_security.verify_created
+    return None
 
 def collect(m,transport,evidence,clock=time.monotonic,grant=None):
     """Core for injected transport tests; production transport has its own gate."""
@@ -292,7 +304,7 @@ def supervised(manifest,output,popen=None,grant=None,receipt=None,receipt_hash=N
     popen=subprocess.Popen if popen is None else popen
     m=load_manifest(manifest); authorize_network(m,grant)
     output=validate_output_path(output,grant['output_policy'] if grant else REVIEWED_OUTPUT_POLICY)
-    evidence=Evidence(output)
+    evidence=Evidence(output,verify_created=created_verifier(grant))
     evidence.write('parent-started.json',{'status':'incomplete','execution_approved':False,'scoped_metadata_admission':grant})
     proc=None; error=None; code=None; termination_confirmed=False; capture=None
     try:
@@ -332,7 +344,8 @@ def main(argv=None):
         # Reserved worker child directory, exclusive creation; parent evidence
         # survives child timeout. Direct worker invocation has the same gate.
         target=validate_output_path(a.output/'worker',grant['output_policy'])
-        result=collect(m,TLSMetadataTransport(m,grant),Evidence(target),grant=grant)
+        evidence=Evidence(target,verify_created=created_verifier(grant))
+        result=collect(m,TLSMetadataTransport(m,grant),evidence,grant=grant)
         return 1 if result['status']=='failed' else 0
     return supervised(a.manifest,a.output,grant=grant,receipt=a.authorization,receipt_hash=a.authorization_sha256,runtime_path=a.runtime_acceptance,runtime_hash=a.runtime_acceptance_sha256)
 
