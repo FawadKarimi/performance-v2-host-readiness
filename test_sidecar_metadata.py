@@ -178,7 +178,53 @@ class MetadataTests(unittest.TestCase):
         self.assertFalse(result["dependency_closure_complete"])
 
     def test_new_set_marker_variables_rejected(self):
-        self.assert_code("marker_variable_unsupported", body(["child; 'test' in dependency_groups"]))
+        from packaging.requirements import Requirement, InvalidRequirement
+
+        dependency = "child; 'test' in dependency_groups"
+        # Probe the installed parser; a version string is not a capability test.
+        try:
+            parsed = Requirement(dependency)
+        except InvalidRequirement:
+            parser_accepts = False
+            expected = "metadata_invalid_requires_dist"
+        else:
+            self.assertIsNotNone(parsed.marker)
+            parser_accepts = True
+            expected = "marker_variable_unsupported"
+
+        no_result = object()
+        result = no_result
+        with mock.patch.object(sm, "_marker_variables",
+                               wraps=sm._marker_variables) as validation:
+            with self.assertRaises(sm.MetadataError) as raised:
+                result = self.parse(body([dependency]))
+        self.assertIs(result, no_result, "rejected metadata must not return a result")
+        self.assertEqual(raised.exception.code, expected)
+        json.dumps(raised.exception.evidence)
+        if parser_accepts:
+            validation.assert_called_once()
+        else:
+            validation.assert_not_called()
+
+    def test_unsupported_variables_rejected_at_marker_validation_layer(self):
+        from packaging.markers import Marker
+
+        for variable in ("dependency_groups", "extras", "unknown_future_variable"):
+            with self.subTest(variable=variable):
+                # Synthetic AST injection bypasses only parser syntax admission.
+                # Use the installed parser's token types; run the real validator.
+                marker = Marker("extra == 'test'")
+                left, operator, right = marker._markers[0]
+                marker._markers[0] = (type(left)(variable), operator, right)
+                no_result = object()
+                result = no_result
+                with mock.patch.object(Marker, "evaluate",
+                                       side_effect=AssertionError("marker evaluated")) as evaluate:
+                    with self.assertRaises(sm.MetadataError) as raised:
+                        result = sm._marker_variables(marker)
+                self.assertEqual(raised.exception.code, "marker_variable_unsupported")
+                self.assertIs(result, no_result)
+                evaluate.assert_not_called()
 
     def test_known_nominee_version_and_root_checks(self):
         result = self.parse(body(["child>=2,<3"]), known={"child": "2.5"}, roots={"child": ">=2.1"})
