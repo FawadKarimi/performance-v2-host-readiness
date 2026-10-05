@@ -1,0 +1,411 @@
+{
+  "schema": "pv2_pure_python_support_security_review_v1",
+  "reviewed_on": "2026-10-05",
+  "release_upload_cutoff_utc": "2026-10-04T17:37:33Z",
+  "scope": "Metadata inspection nominations only; no dependency lock, installation approval, artifact acquisition or execution.",
+  "input_analysis": "input-package/ANALYSIS.json",
+  "decisions": [
+    {
+      "project": "filelock",
+      "support": "Upstream SECURITY.md lists >=3.8 as supported; does not promise a dated maintenance lifetime.",
+      "security": "Do not nominate <3.20.3: GHSA-w853-jp5j-5j7f declares patched 3.20.1; GHSA-qmgc-5h2g-mvrw declares patched 3.20.3. Actual exposure depends on lock class, filesystem and hostile local writers.",
+      "rationale": "4.0.10 is an exact metadata-inspection nominee because it incorporates both published floors and the documented singleton async/lease-option fix; selection is not simply the unrestricted root minimum. The 4.0 line changed SoftReadWriteLock state handling; compatibility is unresolved.",
+      "remaining": [
+        "No binary verified",
+        "No exact application compatibility demonstrated",
+        "No target lock-path permission or implementation reachability evidence",
+        "No blanket security clearance"
+      ],
+      "sources": [
+        {
+          "url": "https://github.com/tox-dev/filelock/security",
+          "date": null,
+          "type": "policy",
+          "retrieved_on": "2026-10-05"
+        },
+        {
+          "url": "https://github.com/tox-dev/filelock/security/advisories/GHSA-w853-jp5j-5j7f",
+          "date": "2025-12-15",
+          "type": "advisory",
+          "retrieved_on": "2026-10-05"
+        },
+        {
+          "url": "https://github.com/tox-dev/filelock/security/advisories/GHSA-qmgc-5h2g-mvrw",
+          "date": "2026-01-09",
+          "type": "advisory",
+          "retrieved_on": "2026-10-05"
+        },
+        {
+          "url": "https://github.com/tox-dev/filelock/releases/tag/4.0.0",
+          "date": "2026-09-17",
+          "type": "release",
+          "retrieved_on": "2026-10-05"
+        },
+        {
+          "url": "https://github.com/tox-dev/filelock/releases/tag/4.0.10",
+          "date": "2026-10-03",
+          "type": "release",
+          "retrieved_on": "2026-10-05"
+        }
+      ],
+      "recommended_metadata_candidate": {
+        "project": "filelock",
+        "version": "4.0.10",
+        "filename": "filelock-4.0.10-py3-none-any.whl",
+        "artifact_url": "https://files.pythonhosted.org/packages/5b/2a/4b1ea3f2180be251a5cff1e70c8a5b7994ffa5c8eab8937901f8a9db58fe/filelock-4.0.10-py3-none-any.whl",
+        "artifact_sha256": "698048d158dc3c9e18cc5e88b3efdd4bd0e77d76686b22adb4511cc4b2c2f0db",
+        "publisher_size_bytes": 111193,
+        "requires_python": ">=3.10",
+        "upload_time": "2026-10-03T23:40:47.334821Z",
+        "metadata_url": "https://files.pythonhosted.org/packages/5b/2a/4b1ea3f2180be251a5cff1e70c8a5b7994ffa5c8eab8937901f8a9db58fe/filelock-4.0.10-py3-none-any.whl.metadata",
+        "metadata_sha256": "2c579e8e54b946d6186305e5f49bd5d6522b073b1e9da9c0f9f3d12927d58648",
+        "platform": {
+          "compatible_interpreter_abi": true,
+          "platform_spellings": [
+            "any"
+          ],
+          "target_platform_verified": true,
+          "native_glibc_and_tag_inventory_required": false
+        },
+        "selection_approved": false,
+        "support_status": "unreviewed",
+        "security_status": "unreviewed"
+      },
+      "selection_approved": false,
+      "security_cleared": false,
+      "deployment_approved": false
+    },
+    {
+      "project": "typing-extensions",
+      "support": "SECURITY.md supports only the latest release. 4.16.0 is latest in the official release listing at review time. Python >=3.9 is documented; 3.12 satisfies.",
+      "security": "Official project security page has no published advisories at review time. This is a bounded search result, not security clearance.",
+      "rationale": "4.16.0 is selected for metadata inspection because the upstream support policy excludes older releases; its stable 4.x policy also promises major-version compatibility. Older 4.10.0–4.15.0 candidates meet the root lower bound but are not currently supported by that policy.",
+      "remaining": [
+        "Runtime typing/reflection interactions untested",
+        "Metadata closure absent",
+        "No exhaustive security assurance"
+      ],
+      "sources": [
+        {
+          "url": "https://github.com/python/typing_extensions/security",
+          "date": null,
+          "type": "policy",
+          "retrieved_on": "2026-10-05"
+        },
+        {
+          "url": "https://typing-extensions.readthedocs.io/en/latest/",
+          "date": null,
+          "type": "versioning_and_python_policy",
+          "retrieved_on": "2026-10-05"
+        },
+        {
+          "url": "https://github.com/python/typing_extensions/releases",
+          "date": "2026-07-02",
+          "type": "release 4.16.0",
+          "retrieved_on": "2026-10-05"
+        }
+      ],
+      "recommended_metadata_candidate": {
+        "project": "typing-extensions",
+        "version": "4.16.0",
+        "filename": "typing_extensions-4.16.0-py3-none-any.whl",
+        "artifact_url": "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl",
+        "artifact_sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+        "publisher_size_bytes": 45571,
+        "requires_python": ">=3.9",
+        "upload_time": "2026-07-02T08:40:04.659120Z",
+        "metadata_url": "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl.metadata",
+        "metadata_sha256": "b05084ca1d50879865178d9fff9fabeab61bdfb1f361bfbde95421ffc8f9be46",
+        "platform": {
+          "compatible_interpreter_abi": true,
+          "platform_spellings": [
+            "any"
+          ],
+          "target_platform_verified": true,
+          "native_glibc_and_tag_inventory_required": false
+        },
+        "selection_approved": false,
+        "support_status": "unreviewed",
+        "security_status": "unreviewed"
+      },
+      "selection_approved": false,
+      "security_cleared": false,
+      "deployment_approved": false
+    },
+    {
+      "project": "sympy",
+      "support": "1.14 release notes explicitly report tests on Python 3.12. Python support policy tracks Python EOL. Neither establishes a dated security-maintenance term for SymPy 1.13.3/1.14.0; that remains unresolved.",
+      "security": "Official project security page reports no SECURITY.md and no published advisories. Not proof of absence of vulnerabilities; untrusted symbolic input remains outside any clearance.",
+      "rationale": "1.14.0 is the exact metadata-inspection nominee because the dated official release documents Python 3.12 testing and mathematical bug fixes; 1.13.3 remains a root-compatible alternative, not proven unsupported by evidence reviewed.",
+      "remaining": [
+        "mpmath child artifact and metadata not closed",
+        "SymPy behavioral changes versus root consumers not tested",
+        "Version-specific maintenance lifetime unresolved"
+      ],
+      "sources": [
+        {
+          "url": "https://github.com/sympy/sympy/wiki/Release-Notes-for-1.14",
+          "date": "2025-04-27",
+          "type": "release",
+          "retrieved_on": "2026-10-05"
+        },
+        {
+          "url": "https://github.com/sympy/sympy/wiki/Python-version-support-policy",
+          "date": "2023-02-24",
+          "type": "policy_last_edit",
+          "retrieved_on": "2026-10-05"
+        },
+        {
+          "url": "https://github.com/sympy/sympy/security",
+          "date": null,
+          "type": "advisory_inventory",
+          "retrieved_on": "2026-10-05"
+        }
+      ],
+      "recommended_metadata_candidate": {
+        "project": "sympy",
+        "version": "1.14.0",
+        "filename": "sympy-1.14.0-py3-none-any.whl",
+        "artifact_url": "https://files.pythonhosted.org/packages/a2/09/77d55d46fd61b4a135c444fc97158ef34a095e5681d0a6c10b75bf356191/sympy-1.14.0-py3-none-any.whl",
+        "artifact_sha256": "e091cc3e99d2141a0ba2847328f5479b05d94a6635cb96148ccb3f34671bd8f5",
+        "publisher_size_bytes": 6299353,
+        "requires_python": ">=3.9",
+        "upload_time": "2025-04-27T18:04:59.103806Z",
+        "metadata_url": "https://files.pythonhosted.org/packages/a2/09/77d55d46fd61b4a135c444fc97158ef34a095e5681d0a6c10b75bf356191/sympy-1.14.0-py3-none-any.whl.metadata",
+        "metadata_sha256": "b756c2fbfd5be05ac5bdb0ebca61f55618f30f633ed92d88a5687429313a7595",
+        "platform": {
+          "compatible_interpreter_abi": true,
+          "platform_spellings": [
+            "any"
+          ],
+          "target_platform_verified": true,
+          "native_glibc_and_tag_inventory_required": false
+        },
+        "selection_approved": false,
+        "support_status": "unreviewed",
+        "security_status": "unreviewed"
+      },
+      "selection_approved": false,
+      "security_cleared": false,
+      "deployment_approved": false
+    },
+    {
+      "project": "networkx",
+      "support": "3.7 installation documentation explicitly supports Python 3.12. Release policy does not use SemVer and minor releases can change APIs. No dated security-maintenance/EOL matrix for all candidate lines was found.",
+      "security": "Official project security page reports no SECURITY.md and no published advisories. This does not certify the 26 candidate versions safe.",
+      "rationale": "3.7 is nominated only for metadata inspection because its current release documentation directly covers target Python 3.12; oldest 2.5.1 cannot gain compatibility merely from Requires-Python. 3.7 API removals and changes still require downstream compatibility review.",
+      "remaining": [
+        "Exact root consumer API compatibility unresolved",
+        "Optional backends/extras must remain unselected",
+        "No full security or EOL certification"
+      ],
+      "sources": [
+        {
+          "url": "https://networkx.org/documentation/stable/",
+          "date": "2026-09-21",
+          "type": "release",
+          "retrieved_on": "2026-10-05"
+        },
+        {
+          "url": "https://networkx.org/documentation/stable/install.html",
+          "date": null,
+          "type": "python_compatibility",
+          "retrieved_on": "2026-10-05"
+        },
+        {
+          "url": "https://networkx.org/documentation/stable/release/index.html",
+          "date": null,
+          "type": "version_policy",
+          "retrieved_on": "2026-10-05"
+        },
+        {
+          "url": "https://networkx.org/documentation/stable/release/release_3.7.html",
+          "date": "2026-09-21",
+          "type": "release_notes",
+          "retrieved_on": "2026-10-05"
+        },
+        {
+          "url": "https://github.com/networkx/networkx/security",
+          "date": null,
+          "type": "advisory_inventory",
+          "retrieved_on": "2026-10-05"
+        }
+      ],
+      "recommended_metadata_candidate": {
+        "project": "networkx",
+        "version": "3.7",
+        "filename": "networkx-3.7-py3-none-any.whl",
+        "artifact_url": "https://files.pythonhosted.org/packages/7e/cd/fe58041e9011f307c490e3e17dd48cc516448f7c698a3f2d9d9d65d7e6a8/networkx-3.7-py3-none-any.whl",
+        "artifact_sha256": "e3fd2c13a7814cee3746340d8d7f8598a67f16a58bf47fb7f8793fab6efca1b0",
+        "publisher_size_bytes": 2142205,
+        "requires_python": "!=3.14.1,>=3.12",
+        "upload_time": "2026-09-21T16:45:14.609636Z",
+        "metadata_url": "https://files.pythonhosted.org/packages/7e/cd/fe58041e9011f307c490e3e17dd48cc516448f7c698a3f2d9d9d65d7e6a8/networkx-3.7-py3-none-any.whl.metadata",
+        "metadata_sha256": "ffcf42a343af6ffc54ff9cc4c09cf9638cd73b131370f395abd11b630186c90c",
+        "platform": {
+          "compatible_interpreter_abi": true,
+          "platform_spellings": [
+            "any"
+          ],
+          "target_platform_verified": true,
+          "native_glibc_and_tag_inventory_required": false
+        },
+        "selection_approved": false,
+        "support_status": "unreviewed",
+        "security_status": "unreviewed"
+      },
+      "selection_approved": false,
+      "security_cleared": false,
+      "deployment_approved": false
+    },
+    {
+      "project": "jinja2",
+      "support": "Pallets policy gives current feature release security fixes; previous-branch backports are discretionary. Official stable release is 3.1.6 within 3.1.",
+      "security": "GHSA-cpwx-vrp4-4pq7 affects <=3.1.5. The advisory's patched header says None; official 3.1.6 release and changelog explicitly identify its fix. Preserve that source discrepancy; do not infer no patch or blanket clearance. Earlier 2024 advisories are also listed in project security history.",
+      "rationale": "3.1.6 is the exact metadata-inspection nominee because it is the current feature-line security patch for the attr-filter sandbox escape; all older preliminary candidates are within that advisory's affected range. Exploitability needs attacker-controlled templates, not established here.",
+      "remaining": [
+        "MarkupSafe native child metadata/artifact absent",
+        "Template trust-boundary and sandbox use unresolved",
+        "Security advisory header discrepancy recorded"
+      ],
+      "sources": [
+        {
+          "url": "https://palletsprojects.com/security",
+          "date": null,
+          "type": "maintenance_policy",
+          "retrieved_on": "2026-10-05"
+        },
+        {
+          "url": "https://jinja.palletsprojects.com/en/stable/changes/",
+          "date": "2025-03-05",
+          "type": "release_notes",
+          "retrieved_on": "2026-10-05"
+        },
+        {
+          "url": "https://github.com/pallets/jinja/releases",
+          "date": "2025-03-05",
+          "type": "release",
+          "retrieved_on": "2026-10-05"
+        },
+        {
+          "url": "https://github.com/pallets/jinja/security/advisories/GHSA-cpwx-vrp4-4pq7",
+          "date": "2025-03-05",
+          "type": "advisory",
+          "retrieved_on": "2026-10-05"
+        },
+        {
+          "url": "https://github.com/pallets/jinja/security/advisories?state=published",
+          "date": null,
+          "type": "advisory_inventory",
+          "retrieved_on": "2026-10-05"
+        }
+      ],
+      "recommended_metadata_candidate": {
+        "project": "jinja2",
+        "version": "3.1.6",
+        "filename": "jinja2-3.1.6-py3-none-any.whl",
+        "artifact_url": "https://files.pythonhosted.org/packages/62/a1/3d680cbfd5f4b8f15abc1d571870c5fc3e594bb582bc3b64ea099db13e56/jinja2-3.1.6-py3-none-any.whl",
+        "artifact_sha256": "85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67",
+        "publisher_size_bytes": 134899,
+        "requires_python": ">=3.7",
+        "upload_time": "2025-03-05T20:05:00.369721Z",
+        "metadata_url": "https://files.pythonhosted.org/packages/62/a1/3d680cbfd5f4b8f15abc1d571870c5fc3e594bb582bc3b64ea099db13e56/jinja2-3.1.6-py3-none-any.whl.metadata",
+        "metadata_sha256": "68c5548fb67c4132a13898d9b31ec50c6bea2abdd915d921f214355c3a6499c8",
+        "platform": {
+          "compatible_interpreter_abi": true,
+          "platform_spellings": [
+            "any"
+          ],
+          "target_platform_verified": true,
+          "native_glibc_and_tag_inventory_required": false
+        },
+        "selection_approved": false,
+        "support_status": "unreviewed",
+        "security_status": "unreviewed"
+      },
+      "selection_approved": false,
+      "security_cleared": false,
+      "deployment_approved": false
+    },
+    {
+      "project": "fsspec",
+      "support": "Official security page has no SECURITY.md. No maintained-version/EOL commitment was found. 2026.7.0 and 2026.9.0 are dated released candidates; support-lifetime conclusions remain unresolved.",
+      "security": "GHSA-27vj-qcqg-25rc (2026-09-01) lists affected >=0.9.0 and patched >=2026.6.0; body still says all >=0.9.0 / latest 2025.10.0. Interpret published patched floor with explicit inconsistency, not automatic clean bill. It concerns untrusted ReferenceFileSystem JSON rendered with unrestricted Jinja; Jinja 3.1.6 alone does not fix this use.",
+      "rationale": "2026.7.0 is nominated for metadata inspection, above the explicit 2026.6.0 patched floor and including owner-only cache-directory permissions and local symlink-removal fixes. 2026.9.0 adds features for which this package shows no requirement, so it is not automatically chosen. 2026.7.0 is not claimed LTS or universally preferable.",
+      "remaining": [
+        "Metadata/extras closure absent",
+        "ReferenceFileSystem usage and template trust unresolved",
+        "Advisory affected-range/body mismatch unresolved",
+        "Version-specific support lifetime unresolved"
+      ],
+      "sources": [
+        {
+          "url": "https://github.com/fsspec/filesystem_spec/security",
+          "date": null,
+          "type": "policy_and_advisory_inventory",
+          "retrieved_on": "2026-10-05"
+        },
+        {
+          "url": "https://github.com/fsspec/filesystem_spec/security/advisories/GHSA-27vj-qcqg-25rc",
+          "date": "2026-09-01",
+          "type": "advisory",
+          "retrieved_on": "2026-10-05"
+        },
+        {
+          "url": "https://github.com/fsspec/filesystem_spec/blob/master/docs/source/changelog.rst",
+          "date": null,
+          "type": "release_changelog",
+          "retrieved_on": "2026-10-05"
+        },
+        {
+          "url": "https://github.com/fsspec/filesystem_spec/releases/tag/2026.7.0",
+          "date": "2026-07-28",
+          "type": "release_date_correlated_with_frozen_upload",
+          "retrieved_on": "2026-10-05"
+        }
+      ],
+      "recommended_metadata_candidate": {
+        "project": "fsspec",
+        "version": "2026.7.0",
+        "filename": "fsspec-2026.7.0-py3-none-any.whl",
+        "artifact_url": "https://files.pythonhosted.org/packages/fd/3c/6a2bf344106328fd04963664a60b9bb6496fc25df8e962fcdc1367285fb9/fsspec-2026.7.0-py3-none-any.whl",
+        "artifact_sha256": "b57ddbafedfaef7018c1ecab32aa200a9d7ca26b77965f64e48b70061249d279",
+        "publisher_size_bytes": 206583,
+        "requires_python": ">=3.10",
+        "upload_time": "2026-07-28T16:34:49.538692Z",
+        "metadata_url": "https://files.pythonhosted.org/packages/fd/3c/6a2bf344106328fd04963664a60b9bb6496fc25df8e962fcdc1367285fb9/fsspec-2026.7.0-py3-none-any.whl.metadata",
+        "metadata_sha256": "88b1657585de14e3bb82aa5278aa9595b30aa4ca74ead073d8950615c808099d",
+        "platform": {
+          "compatible_interpreter_abi": true,
+          "platform_spellings": [
+            "any"
+          ],
+          "target_platform_verified": true,
+          "native_glibc_and_tag_inventory_required": false
+        },
+        "selection_approved": false,
+        "support_status": "unreviewed",
+        "security_status": "unreviewed"
+      },
+      "selection_approved": false,
+      "security_cleared": false,
+      "deployment_approved": false
+    }
+  ],
+  "recursive_gaps": [
+    "Selected wheel sidecars not fetched, so complete active Requires-Dist graphs unknown.",
+    "SymPy mpmath and Jinja MarkupSafe child metadata/artifacts are missing from current candidate collection; exact versions and hashes must not be invented.",
+    "Base versus optional extras must be evaluated for target CPython 3.12.15 / Linux x86_64. Native MarkupSafe will require target tag/glibc evidence.",
+    "Even packages thought to have no base dependencies need exact sidecars to establish absence; source/release docs do not close artifact metadata.",
+    "No optional LIDC or Phase 5 packages are admitted by these nominations."
+  ],
+  "authorization": {
+    "fetch_sidecars": false,
+    "fetch_indexes": false,
+    "download_binaries": false,
+    "install": false,
+    "execute": false,
+    "stage_b": "paused",
+    "gpu_pilots": "paused"
+  }
+}

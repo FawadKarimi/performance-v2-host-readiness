@@ -1,0 +1,96 @@
+name: Seven-sidecar offline Linux compatibility (review candidate)
+on:
+  workflow_dispatch:
+    inputs:
+      authorize_synthetic_only:
+        type: boolean
+        required: true
+        default: false
+      fresh_zero_paid_usage:
+        type: boolean
+        required: true
+        default: false
+      reviewed_source_lock_sha256:
+        description: SHA-256 of the independently reviewed source-lock.json
+        type: string
+        required: true
+        default: ''
+permissions:
+  contents: read
+concurrency:
+  group: seven-sidecar-offline-compatibility
+  cancel-in-progress: false
+jobs:
+  compatibility:
+    if: ${{ github.repository == 'FawadKarimi/performance-v2-host-readiness' && github.event.repository.private == true && github.actor_id == '108207574' && github.triggering_actor == github.repository_owner && github.ref == 'refs/heads/main' && github.run_attempt == 1 && inputs.authorize_synthetic_only && inputs.fresh_zero_paid_usage }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      CUDA_VISIBLE_DEVICES: ''
+    steps:
+      - name: Retain bootstrap identity before checkout
+        shell: bash
+        env:
+          REVIEWED_LOCK_SHA256: ${{ inputs.reviewed_source_lock_sha256 }}
+        run: |
+          set -euo pipefail
+          umask 077
+          launch="$RUNNER_TEMP/sidecar-compat-launch-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          mkdir -m 700 "$launch"
+          trap 'code=$?; printf "%s\n" "$code" > "$launch/bootstrap-exit-status.txt"' EXIT
+          printf '{"status":"bootstrap_started","run_id":"%s","attempt":"%s","commit":"%s","collection_authorized":false,"native_linux_accepted":false}\n' "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$GITHUB_SHA" > "$launch/bootstrap-started.json"
+          [[ "$REVIEWED_LOCK_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          printf '%s\n' "$REVIEWED_LOCK_SHA256" > "$launch/expected-source-lock-sha256.txt"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          ref: ${{ github.sha }}
+      - name: Observe local identity-action Node (not checkout/upload equivalence)
+        timeout-minutes: 1
+        continue-on-error: true
+        uses: ./.github/actions/node-runtime-identity
+      - name: Offline native synthetic compatibility only
+        shell: bash
+        timeout-minutes: 3
+        env:
+          REVIEWED_LOCK_SHA256: ${{ inputs.reviewed_source_lock_sha256 }}
+        run: |
+          set -euo pipefail
+          umask 077
+          launch="$RUNNER_TEMP/sidecar-compat-launch-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          [[ -d "$launch" && ! -L "$launch" ]]
+          printf '{"status":"incomplete","collection_authorized":false,"native_linux_accepted":false}\n' > "$launch/payload-started.json"
+          finish() {
+            code=$?
+            trap - EXIT
+            printf '%s\n' "$code" > "$launch/immediate-exit-status.txt"
+            printf '{"status":"launch_ended_not_acceptance","exit_code":%s,"collection_authorized":false}\n' "$code" > "$launch/finished.json"
+            exit "$code"
+          }
+          trap finish EXIT
+          [[ "$REVIEWED_LOCK_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          actual_lock="$(sha256sum source-lock.json | cut -d ' ' -f 1)"
+          printf '%s\n' "$actual_lock" > "$launch/source-lock-sha256.txt"
+          [[ "$actual_lock" == "$REVIEWED_LOCK_SHA256" ]]
+          sha256sum .github/workflows/sidecar-linux-compatibility.yml > "$launch/workflow-sha256.txt"
+          parent_net="$(readlink /proc/self/ns/net)"
+          runner_uid="$(id -u)"
+          runner_user="$(id -un)"
+          [[ "$runner_uid" != 0 ]]
+          printf '%s\n' "$parent_net" > "$launch/parent-network-namespace.txt"
+          ulimit -f 2048
+          sudo -n /usr/bin/timeout --signal=TERM --kill-after=5s 120s /usr/bin/unshare --net /usr/sbin/runuser --user "$runner_user" -- /usr/bin/setpriv --no-new-privs /usr/bin/env -i PATH=/usr/bin:/bin HOME="$RUNNER_TEMP" RUNNER_TEMP="$RUNNER_TEMP" PYTHONDONTWRITEBYTECODE=1 CUDA_VISIBLE_DEVICES= GITHUB_REPOSITORY="$GITHUB_REPOSITORY" GITHUB_SHA="$GITHUB_SHA" GITHUB_RUN_ID="$GITHUB_RUN_ID" GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" GITHUB_RUN_NUMBER="$GITHUB_RUN_NUMBER" GITHUB_WORKFLOW_REF="$GITHUB_WORKFLOW_REF" GITHUB_ACTOR_ID="$GITHUB_ACTOR_ID" GITHUB_TRIGGERING_ACTOR="$GITHUB_TRIGGERING_ACTOR" RUNNER_NAME="$RUNNER_NAME" /usr/bin/python3.12 -I -B compatibility/native_linux.py --source-lock-sha256 "$REVIEWED_LOCK_SHA256" --parent-net "$parent_net" --uid "$runner_uid" --output "$RUNNER_TEMP/sidecar-compat-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" > "$launch/stdout.log" 2> "$launch/stderr.log"
+      - name: Retain partial and complete compatibility evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: seven-sidecar-offline-compatibility-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/node-identity-${{ github.run_id }}-${{ github.run_attempt }}/
+            ${{ runner.temp }}/sidecar-compat-launch-${{ github.run_id }}-${{ github.run_attempt }}/
+            ${{ runner.temp }}/sidecar-compat-${{ github.run_id }}-${{ github.run_attempt }}/
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: false
