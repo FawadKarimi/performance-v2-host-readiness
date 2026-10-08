@@ -1,16 +1,26 @@
-"""Immutable seven-request proposal contract, not network authorization."""
+"""Immutable nine-request proposal contract, not network authorization."""
 import hashlib
 import json
 from pathlib import Path
 
-PROPOSAL_SHA256 = 'ad7c7e726ba0c5df2ecd74c601f9036570c5bbc92206f7e98dda230d6054fe9b'
-CANONICAL_SHA256 = '222345f191eee71a76886cbb32a75d30ba02e32a0a3f3f177f47d0c031f05524'
-SCOPE = '7_hash_bound_metadata_gets_only'
+PROPOSAL_SHA256 = '3d24522de536bb1d64617b9efc5a7ddac1a414b199a65a59ad37c5146ed69283'
+CANONICAL_SHA256 = 'e8e9958474a633a0cd51d198b0117c44dcf437b7e2b25183468cbd881bb25fed'
+SCOPE = '9_hash_bound_metadata_gets_only'
 ROOT_CONSTRAINTS = {'filelock':'','typing-extensions':'>=4.10.0','setuptools':'>=77.0.3',
                    'sympy':'>=1.13.3','networkx':'>=2.5.1','jinja2':'','fsspec':'>=0.8.5',
                    'numpy':'>=1.24,<3','pillow':'>=5.3.0,!=8.3.*','pyyaml':'>=6,<7',
                    'pandas':'>=2,<3','torch':'==2.13.0',
                    'torchvision':'==0.28.0+cpu','opencv-python':''}
+
+def _runtime_view(proposal):
+    # Called only after exact raw SHA validation. No scope or URL synthesis.
+    proposal['bounded_transport'] = proposal['transport'].copy()
+    proposal['release_upload_cutoff_utc'] = proposal['cutoff']
+    proposal['authorization'] = {'execution_authorized': False}
+    for request in proposal['requests']:
+        request.setdefault('artifact_bytes_verified', False)
+    return proposal
+
 
 def validate_proposal(proposal):
     try:
@@ -26,7 +36,7 @@ def load_proposal(path):
     if len(raw)>32768 or hashlib.sha256(raw).hexdigest()!=PROPOSAL_SHA256:
         raise ValueError('proposal_byte_hash_mismatch')
     from collector import strict_json
-    return validate_proposal(strict_json(raw))
+    return validate_proposal(_runtime_view(strict_json(raw)))
 
 def known_nodes(proposal):
     validate_proposal(proposal)

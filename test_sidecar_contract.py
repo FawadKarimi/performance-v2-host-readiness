@@ -22,8 +22,8 @@ class ContractTests(unittest.TestCase):
 
     def test_literals_match_frozen_order(self):
         self.assertEqual(tuple(x['url'] for x in self.proposal['requests']), transport.URLS)
-        self.assertEqual(len(transport.URLS), 7)
-        self.assertEqual(len(set(transport.URLS)), 7)
+        self.assertEqual(len(transport.URLS), 9)
+        self.assertEqual(len(set(transport.URLS)), 9)
         self.assertTrue(all(x.endswith('.whl.metadata') for x in transport.URLS))
 
     def test_target_and_cutoff_preserved(self):
@@ -45,7 +45,7 @@ class ContractTests(unittest.TestCase):
         nodes = contract.known_nodes(self.proposal)
         self.assertEqual(nodes['torch'], '2.13.0+cpu')
         self.assertEqual(nodes['torchvision'], '0.28.0+cpu')
-        self.assertEqual(len(nodes), 9)
+        self.assertEqual(len(nodes), 11)
 
     def test_runtime_roots_keep_optional_scopes_out(self):
         self.assertNotIn('pytest', contract.ROOT_CONSTRAINTS)

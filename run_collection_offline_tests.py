@@ -1,0 +1,47 @@
+"""Sidecar delta and reused admission suites; mocked execution only."""
+import json
+import hashlib
+from pathlib import Path
+import platform
+import sys
+import time
+from types import SimpleNamespace
+import unittest
+from unittest.mock import patch
+
+ROOT=Path(__file__).resolve().parent
+sys.path.insert(0,str(ROOT))
+sys.path.insert(0,str(ROOT/'compatibility'))
+SOURCE_LOCK_SHA256=hashlib.sha256((ROOT/'collection-source-lock.json').read_bytes()).hexdigest()
+lock=json.loads((ROOT/'collection-source-lock.json').read_bytes())
+for name,digest in lock['files'].items():
+    path=ROOT/name
+    if path.is_symlink() or not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest()!=digest:
+        raise SystemExit('source_lock_mismatch: '+name)
+
+
+def offline(event,args):
+    if event in {'socket.connect','socket.getaddrinfo','socket.gethostbyname',
+                 'socket.gethostbyaddr','subprocess.Popen','os.system'}:
+        raise RuntimeError('offline_suite_forbids_network_and_subprocesses')
+
+
+sys.addaudithook(offline)
+modules=['test_sidecar_contract','test_sidecar_collector','test_sidecar_metadata',
+         'test_sidecar_transport','test_sidecar_admission','test_sidecar_supervisor',
+         'test_sidecar_bootstrap','test_nine_manifest']
+suite=unittest.defaultTestLoader.loadTestsFromNames(modules)
+start=time.monotonic()
+fake_host=SimpleNamespace(system='Windows',node='offline-fixture',release='0',
+                         version='0',machine='ARM64',processor='')
+with patch('platform.uname',return_value=fake_host):
+    result=unittest.TextTestRunner(verbosity=2).run(suite)
+import packaging
+print(json.dumps(dict(schema='sidecar_collection_candidate_offline_tests_v1',tests=result.testsRun,
+    failures=len(result.failures),errors=len(result.errors),skipped=len(result.skipped),
+    successful=result.wasSuccessful(),seconds=round(time.monotonic()-start,6),
+    python=sys.version,executable=sys.executable,platform=sys.platform,packaging=packaging.__version__,
+    modules=modules,source_lock_sha256=SOURCE_LOCK_SHA256,
+    network_and_subprocess_audit_deny=True,platform_uname_mocked=True,
+    execution_authorized=False,native_linux_compatibility_verified=False),indent=2))
+raise SystemExit(0 if result.wasSuccessful() and not result.skipped and result.testsRun==lock['expected_offline_tests'] else 1)

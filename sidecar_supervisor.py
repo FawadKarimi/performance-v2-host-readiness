@@ -1,7 +1,7 @@
 """Bounded parent for the sidecar worker; no network capability is acquired.
 
-The independently admitted worker owns the seven GETs.  This parent retains
-start/finish evidence, kills a blocked worker at 120 seconds, drains only bounded
+The independently admitted worker owns the nine GETs.  This parent retains
+start/finish evidence, kills a blocked worker at 180 seconds, drains only bounded
 allowlisted diagnostics and validates completed files before reporting success.
 """
 from __future__ import annotations
@@ -97,7 +97,7 @@ def _json(path, cap):
 
 
 def validate_worker_outputs(proposal, worker):
-    """Read at most seven bounded bodies and bounded receipts/parsed records.
+    """Read at most nine bounded bodies and bounded receipts/parsed records.
 
     The parser is not rerun.  Frozen response hashes plus source/run admission
     bind the worker's parsed output; the documented same-UID residual risk still
@@ -113,24 +113,24 @@ def validate_worker_outputs(proposal, worker):
          and report.get('status') == 'metadata_collected_not_approved'
          and report.get('proposal_sha256') == PROPOSAL_SHA256,
          'worker_report_identity_rejected')
-    need(type(report.get('requests_attempted')) is int and report['requests_attempted'] == 7
-         and type(report.get('requests_validated')) is int and report['requests_validated'] == 7,
+    need(type(report.get('requests_attempted')) is int and report['requests_attempted'] == 9
+         and type(report.get('requests_validated')) is int and report['requests_validated'] == 9,
          'worker_report_count_rejected')
     need(type(report.get('retained_body_bytes')) is int
-         and 0 <= report['retained_body_bytes'] <= 1835008,
+         and 0 <= report['retained_body_bytes'] <= 2359296,
          'worker_report_size_rejected')
     need(all(report.get(key) is False for key in FALSE_RESULT_FLAGS),
          'worker_report_approval_rejected')
     need(report.get('failures') == [] and report.get('metadata_nominees_only') is True
          and report.get('release_upload_cutoff_utc') == proposal['release_upload_cutoff_utc']
-         and report.get('results') == [f'{i:02d}-metadata.json' for i in range(7)],
+         and report.get('results') == [f'{i:02d}-metadata.json' for i in range(9)],
          'worker_report_results_rejected')
     if 'errors' in report:
         need(report['errors'] == [], 'worker_report_errors_present')
     bindings = []
     groups = {}
     total = 0
-    need(len(proposal['requests']) == 7, 'worker_proposal_count_rejected')
+    need(len(proposal['requests']) == 9, 'worker_proposal_count_rejected')
     for index, request in enumerate(proposal['requests']):
         prefix = f'{index:02d}'
         raw = _regular_bytes(worker / (prefix + '.body'), 262144)
@@ -191,7 +191,7 @@ def validate_worker_outputs(proposal, worker):
         bindings.append({'request_id': request['id'], 'response_sha256': digest,
                          'body_bytes': len(raw), 'receipt_sha256': receipt_hash,
                          'parsed_metadata_sha256': parsed_hash})
-    need(total == report['retained_body_bytes'] and total <= 1835008,
+    need(total == report['retained_body_bytes'] and total <= 2359296,
          'worker_report_total_mismatch')
     conjunction, conjunction_hash = _json(worker / '06-constraints.json', 1048576)
     need(conjunction.get('schema') == 'performance_v2_sidecar_constraint_conjunction_v1'
@@ -215,7 +215,7 @@ def validate_worker_outputs(proposal, worker):
              and child.get('child_metadata_closed') is False
              and child.get('unresolved_requirements_present') is bool(expected['unresolved_edges']),
              'worker_conjunction_binding_rejected')
-    return {'report_sha256': report_hash, 'requests_validated': 7,
+    return {'report_sha256': report_hash, 'requests_validated': 9,
             'constraints_sha256': conjunction_hash, 'retained_body_bytes': total, 'bindings': bindings}
 
 
@@ -265,7 +265,7 @@ def supervised(proposal_path, output, grant, receipt_path, receipt_hash,
         evidence.write('parent-started.json', {
             'schema': 'sidecar_parent_started_v1', 'status': 'incomplete',
             'proposal_sha256': PROPOSAL_SHA256, 'execution_approved': False,
-            'scope': sidecar_admission.SCOPE, 'aggregate_deadline_seconds': 120,
+            'scope': sidecar_admission.SCOPE, 'aggregate_deadline_seconds': 180,
             'scoped_metadata_admission': {key: grant[key] for key in (
                 'receipt_sha256', 'runtime_acceptance_sha256',
                 'transport_acceptance_sha256', 'run_api_sha256', 'source_hashes')},
@@ -286,12 +286,12 @@ def supervised(proposal_path, output, grant, receipt_path, receipt_hash,
             raise LaunchCancelled()
         if getattr(proc, 'stderr', None) is not None:
             capture = Capture(proc.stderr)
-        remaining = 120 - (clock() - launched)
+        remaining = 180 - (clock() - launched)
         if remaining <= 0:
             raise TimeoutError('worker deadline exceeded')
         code = proc.wait(timeout=remaining)
         termination_confirmed = True
-        if clock() - launched >= 120:
+        if clock() - launched >= 180:
             raise TimeoutError('worker deadline exceeded')
         need(type(code) is int and code == 0, 'worker_nonzero_exit')
         completion = validate_worker_outputs(proposal, Path(output) / 'worker')

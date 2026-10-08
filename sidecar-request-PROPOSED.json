@@ -1,12 +1,9 @@
 {
-  "schema": "performance_v2_sidecar_request_proposal_v1",
-  "status": "PROPOSED_NOT_AUTHORIZED_NOT_EXECUTED",
-  "reviewed_on": "2026-10-05",
-  "input_package_sha256": "d77e83646528898fc45f02fbd6a6c00be7114b5e64917282e01bb1f60afe1277",
-  "analysis_sha256": "c03bc7ad108ac5cfa90c6f9979bf7df9868bc81255625735444a439e7cb9ece6",
-  "collection_run_id": 37272190686,
-  "collection_artifact_sha256": "4bfccaa4821feae9edf6984809211cd9a4de26605323bdbf8c3cb111d4db053c",
-  "release_upload_cutoff_utc": "2026-10-04T17:37:33+00:00",
+  "status": "review_only_not_authorized",
+  "selected_pair": [
+    "torch==2.13.0+cpu",
+    "torchvision==0.28.0+cpu"
+  ],
   "target": {
     "python_version": "3.12",
     "python_full_version": "3.12.15",
@@ -21,26 +18,7 @@
     "platform_version": "",
     "extra": ""
   },
-  "purpose": "One hash-bound sidecar per unresolved pure-Python direct torch runtime dependency. Investigative version nominations only; not an installation lock or completed recursive graph.",
-  "bounded_transport": {
-    "exact_get_count": 7,
-    "max_attempts": 7,
-    "retries": 0,
-    "redirects": 0,
-    "head_requests": 0,
-    "additional_indexes": 0,
-    "sidecar_url_rewriting": false,
-    "allowed_hosts": [
-      "files.pythonhosted.org"
-    ],
-    "per_response_byte_cap": 262144,
-    "aggregate_response_byte_cap": 1835008,
-    "per_request_timeout_seconds": 20,
-    "aggregate_deadline_seconds": 120,
-    "credentials": "none",
-    "automatic_recursion": false,
-    "binary_fallback": false
-  },
+  "cutoff": "2026-10-04T17:37:33+00:00",
   "requests": [
     {
       "id": "metadata-01",
@@ -237,50 +215,107 @@
       },
       "artifact_bytes_verified": false,
       "install_selection_approved": false
-    }
-  ],
-  "required_results": [
-    "Preserve raw response bytes and literal request/response receipt; verify exact expected SHA-256 before parsing.",
-    "Reject absent sidecar, redirect, network error, oversized response, digest mismatch or mismatched Name/Version; stop, do not substitute artifacts or request an index/wheel.",
-    "Parse as data without imports/install/build backend; validate Requires-Python and all Requires-Dist markers/extras for the frozen target.",
-    "Apply all root/intersection constraints, record active and inactive edges; create a new reviewed exact proposal for unresolved children, preserving this upload cutoff."
-  ],
-  "not_included": [
-    "Already captured torch/torchvision metadata",
-    "Native NumPy/Pillow/PyYAML/pandas/OpenCV sidecars pending target/source decisions",
-    "pytest test closure",
-    "wheel/pip build-installer closure",
-    "Optional LIDC/Phase2/Phase5 environments",
-    "Any child discovered dynamically"
-  ],
-  "review_documents": [
-    {
-      "path": "pure-support-security.md",
-      "sha256": "5db7ace9a910dfb275f02f1c3f0c171fdee8a5e75dc417a14340ccf20a197aba"
     },
     {
-      "path": "pure-support-security.json",
-      "sha256": "075b05dd3887e259c6f1262e7e155cf1dc3d334aeba0f5be0c05c90410f0be61"
+      "id": "metadata-08",
+      "project": "numpy",
+      "version": "2.5.3",
+      "method": "GET",
+      "url": "https://files.pythonhosted.org/packages/65/af/aa78d1a88805456e212b65461354cd943197fb9acecc4c90fd12295123a3/numpy-2.5.3-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata",
+      "expected_response_sha256": "451a9b8028000588e66b0b415587b6aef0bbc51a96d8e8a0cba0dc23acf64f99",
+      "max_response_bytes": 262144,
+      "headers": {
+        "Accept": "text/plain",
+        "Accept-Encoding": "identity"
+      },
+      "frozen_source": {
+        "project": "numpy",
+        "version": "2.5.3",
+        "filename": "numpy-2.5.3-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+        "artifact_url": "https://files.pythonhosted.org/packages/65/af/aa78d1a88805456e212b65461354cd943197fb9acecc4c90fd12295123a3/numpy-2.5.3-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+        "artifact_sha256": "b7e18c623bb5c95acb3b3328861272816ba199fb531921c5d6d0b675f1fde9e3",
+        "publisher_size_bytes": 16717410,
+        "requires_python": ">=3.12",
+        "upload_time": "2026-09-06T16:24:42.745905Z",
+        "metadata_url": "https://files.pythonhosted.org/packages/65/af/aa78d1a88805456e212b65461354cd943197fb9acecc4c90fd12295123a3/numpy-2.5.3-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata",
+        "metadata_sha256": "451a9b8028000588e66b0b415587b6aef0bbc51a96d8e8a0cba0dc23acf64f99",
+        "platform": {
+          "compatible_interpreter_abi": true,
+          "platform_spellings": [
+            "manylinux_2_27_x86_64",
+            "manylinux_2_28_x86_64"
+          ],
+          "target_platform_verified": false,
+          "native_glibc_and_tag_inventory_required": true
+        },
+        "selection_approved": false,
+        "support_status": "unreviewed",
+        "security_status": "unreviewed"
+      },
+      "index_body_sha256": "e2c888e02299a874ba3c455b4fc013ccc51765b30983551a96784956bed84f3b",
+      "install_selection_approved": false
     },
     {
-      "path": "scope-tooling-target-review.md",
-      "sha256": "a631e51f26872c68a51256a9d29dbc8fd92f57af0c3d681ba87d72f533952793"
+      "id": "metadata-09",
+      "project": "pillow",
+      "version": "12.3.0",
+      "method": "GET",
+      "url": "https://files.pythonhosted.org/packages/84/21/a35af28dcc61f37ed850a2d64c65c701321dfbf25085e469d5559360cbbf/pillow-12.3.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata",
+      "expected_response_sha256": "8fc07146cab33ef7582361dab6eac596d340b03ec648f18217da7894f73838c8",
+      "max_response_bytes": 262144,
+      "headers": {
+        "Accept": "text/plain",
+        "Accept-Encoding": "identity"
+      },
+      "frozen_source": {
+        "project": "pillow",
+        "version": "12.3.0",
+        "filename": "pillow-12.3.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+        "artifact_url": "https://files.pythonhosted.org/packages/84/21/a35af28dcc61f37ed850a2d64c65c701321dfbf25085e469d5559360cbbf/pillow-12.3.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+        "artifact_sha256": "78cb2c6865a35ab8ff8b75fd122f6033b92a62c82801110e48ddd6c936a45d91",
+        "publisher_size_bytes": 6940830,
+        "requires_python": ">=3.10",
+        "upload_time": "2026-07-01T11:54:13.732453Z",
+        "metadata_url": "https://files.pythonhosted.org/packages/84/21/a35af28dcc61f37ed850a2d64c65c701321dfbf25085e469d5559360cbbf/pillow-12.3.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata",
+        "metadata_sha256": "8fc07146cab33ef7582361dab6eac596d340b03ec648f18217da7894f73838c8",
+        "platform": {
+          "compatible_interpreter_abi": true,
+          "platform_spellings": [
+            "manylinux_2_27_x86_64",
+            "manylinux_2_28_x86_64"
+          ],
+          "target_platform_verified": false,
+          "native_glibc_and_tag_inventory_required": true
+        },
+        "selection_approved": false,
+        "support_status": "unreviewed",
+        "security_status": "unreviewed"
+      },
+      "index_body_sha256": "44200912b3ac4698317e256747671052402b62e70e4b2af30f85c7254912d0b8",
+      "install_selection_approved": false
     }
   ],
-  "authorization": {
-    "owner_approved": false,
-    "independent_transport_approved": false,
-    "network_authorized": false,
-    "acquisition_authorized": false,
-    "install_authorized": false,
-    "execution_approved": false,
-    "workflow_dispatch_authorized": false,
-    "security_cleared": false,
-    "dependency_closure_complete": false,
-    "full_docker_acceptance": false,
-    "stage_a_bounded_closure": "preserved",
-    "stage_b": "paused",
-    "gpu_pilots": "paused"
+  "transport": {
+    "exact_get_count": 9,
+    "max_attempts": 9,
+    "retries": 0,
+    "redirects": 0,
+    "head_requests": 0,
+    "additional_indexes": 0,
+    "sidecar_url_rewriting": false,
+    "allowed_hosts": [
+      "files.pythonhosted.org"
+    ],
+    "per_response_byte_cap": 262144,
+    "aggregate_response_byte_cap": 2359296,
+    "per_request_timeout_seconds": 20,
+    "aggregate_deadline_seconds": 180,
+    "credentials": "none",
+    "automatic_recursion": false,
+    "binary_fallback": false
   },
-  "activation_note": "Requires separate explicit authorization for this exact proposal/hash and applicable transport review; previous fourteen-request authorization was run-scoped. Existing index-only collector compatibility does not establish sidecar transport acceptance. No adaptation or dispatch is requested by this document."
+  "reuse_note": "First seven unchanged requests are pending, not recollections. Only NumPy/Pillow added. No Torch/vision root metadata GET needed: cp310 and cp312 advertise already authenticated sidecar digests.",
+  "recursive_closure_complete": false,
+  "loading_authorized": false,
+  "production_execution_authorized": false
 }

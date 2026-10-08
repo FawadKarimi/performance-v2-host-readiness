@@ -1,0 +1,11 @@
+{
+  "collection_authorized": false,
+  "collection_source_lock_sha256": "ed7b3fa17cab42d9c2cfab059454340164af5ad68f6ebc16540d3c5317fbbc37",
+  "execution_authorized": false,
+  "files": {
+    ".github/workflows/sidecar-native-delta.yml": "19b861b61c5ab6fd8a907b33862d5faa439f7e569ad67c0aff846a9dab2d85ad",
+    "compatibility/nine_delta.py": "aa4f7d6bbf27ae0afb338a4bc889938bf3c0b1fbf9f3c68f7554bacd8ec5c903",
+    "compatibility/test_nine_delta.py": "974afb3afc3614b25cc496a90514d1d7663aca2e3024d1e955503cf94497412b"
+  },
+  "schema": "nine_sidecar_native_delta_lock_v1"
+}

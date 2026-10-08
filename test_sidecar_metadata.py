@@ -298,7 +298,7 @@ class MetadataTests(unittest.TestCase):
         result = self.parse(body(["child>=1"]))
         altered = copy.deepcopy(result)
         altered["frozen_target"]["platform_machine"] = "arm64"
-        for results in ([altered], [dict(result, digest_verified_before_parse=False)], [result] * 8):
+        for results in ([altered], [dict(result, digest_verified_before_parse=False)], [result] * 10):
             with self.assertRaises(sm.MetadataError) as raised:
                 sm.check_collection_constraints(results, {}, {}, TARGET)
             self.assertEqual(raised.exception.code, "collection_results_invalid")

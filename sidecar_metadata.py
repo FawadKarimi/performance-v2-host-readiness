@@ -314,7 +314,7 @@ def parse_metadata(raw, request, target, known_nodes, root_constraints):
 
 
 def check_collection_constraints(results, root_constraints, known_nodes, target):
-    """Conjoin active edges across <=7 already validated sidecar results.
+    """Conjoin active edges across <=9 already validated sidecar results.
 
     Edges remain in their parent result. This evidence refers to them by response
     digest and edge index and never fetches children. Unknown-marker/direct-URL
@@ -326,7 +326,7 @@ def check_collection_constraints(results, root_constraints, known_nodes, target)
     from packaging.utils import canonicalize_name, InvalidName
     from packaging.version import Version, InvalidVersion
 
-    _require(isinstance(results, list) and len(results) <= 7, "collection_results_invalid")
+    _require(isinstance(results, list) and len(results) <= 9, "collection_results_invalid")
     _require(isinstance(target, dict) and set(target) == TARGET_KEYS,
              "metadata_target_incomplete")
     _require(isinstance(root_constraints, dict) and isinstance(known_nodes, dict)

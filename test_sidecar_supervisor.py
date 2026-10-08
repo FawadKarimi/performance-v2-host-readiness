@@ -60,8 +60,9 @@ class SupervisorTests(unittest.TestCase):
         self.output = self.root / 'run'
         self.clock = Clock()
         self.proposal_path = Path(__file__).with_name('sidecar-request-PROPOSED.json')
-        self.p = json.loads(self.proposal_path.read_bytes())
-        self.bodies = [f'offline synthetic metadata fixture {i}\n'.encode() for i in range(7)]
+        from sidecar_contract import load_proposal
+        self.p = load_proposal(self.proposal_path)
+        self.bodies = [f'offline synthetic metadata fixture {i}\n'.encode() for i in range(9)]
         for request, body in zip(self.p['requests'], self.bodies):
             request['expected_response_sha256'] = hashlib.sha256(body).hexdigest()
         self.grant = {
@@ -97,11 +98,11 @@ class SupervisorTests(unittest.TestCase):
         worker.mkdir(parents=True)
         report = {
             'schema': 'sidecar_collection_report_v1', 'status': 'metadata_collected_not_approved',
-            'proposal_sha256': ss.PROPOSAL_SHA256, 'requests_attempted': 7,
-            'requests_validated': 7, 'retained_body_bytes': sum(map(len, self.bodies)),
+            'proposal_sha256': ss.PROPOSAL_SHA256, 'requests_attempted': 9,
+            'requests_validated': 9, 'retained_body_bytes': sum(map(len, self.bodies)),
             'failures': [], 'metadata_nominees_only': True,
             'release_upload_cutoff_utc': self.p['release_upload_cutoff_utc'],
-            'results': [f'{i:02d}-metadata.json' for i in range(7)],
+            'results': [f'{i:02d}-metadata.json' for i in range(9)],
             'errors': [], **{name: False for name in ss.FALSE_RESULT_FLAGS},
         }
         self.dump(worker / 'report.json', report)
@@ -145,7 +146,7 @@ class SupervisorTests(unittest.TestCase):
     def finished(self):
         return json.loads((self.output / 'parent-finished.json').read_bytes())
 
-    def test_success_requires_exact_seven_hash_bound_outputs(self):
+    def test_success_requires_exact_nine_hash_bound_outputs(self):
         proc = FakeProcess()
         def launch(args, **kwargs):
             self.assertTrue((self.output / 'parent-started.json').is_file())
@@ -164,7 +165,7 @@ class SupervisorTests(unittest.TestCase):
         self.assertEqual(result['status'], 'metadata_collected_not_approved')
         self.assertTrue(result['worker_completion_verified'])
         self.assertTrue(result['termination_confirmed'])
-        self.assertEqual(len(result['completion']['bindings']), 7)
+        self.assertEqual(len(result['completion']['bindings']), 9)
         self.assertEqual(result['completion']['retained_body_bytes'], sum(map(len, self.bodies)))
         self.assertTrue(all(result[key] is False for key in ss.FALSE_RESULT_FLAGS))
         self.network_mock.assert_not_called()
@@ -232,7 +233,7 @@ class SupervisorTests(unittest.TestCase):
         self.assertNotIn('PRIVATE_TOKEN', (self.output / 'parent-finished.json').read_text())
 
     def test_timeout_hard_kills_reaps_and_keeps_partial_body(self):
-        proc = FakeProcess((subprocess.TimeoutExpired('private command', 120), -9))
+        proc = FakeProcess((subprocess.TimeoutExpired('private command', 180), -9))
         def launch(*a, **k):
             (self.output / 'worker').mkdir()
             (self.output / 'worker' / '00.body').write_bytes(b'partial bytes')
@@ -243,7 +244,7 @@ class SupervisorTests(unittest.TestCase):
         self.assertTrue(result['termination_confirmed'])
         self.assertEqual(proc.kills, 1)
         self.assertEqual(proc.terminates, 0)
-        self.assertEqual(proc.waits, [120, 5])
+        self.assertEqual(proc.waits, [180, 5])
         self.assertEqual((self.output / 'worker' / '00.body').read_bytes(), b'partial bytes')
 
     def test_deadline_counts_process_launch_elapsed_time(self):
@@ -252,12 +253,12 @@ class SupervisorTests(unittest.TestCase):
             self.clock.now = 3
             return proc
         self.assertEqual(self.call(launch), 1)
-        self.assertEqual(proc.waits, [117])
+        self.assertEqual(proc.waits, [177])
 
     def test_late_process_launch_is_killed_without_full_wait(self):
         proc = FakeProcess((-9,))
         def launch(*a, **k):
-            self.clock.now = 121
+            self.clock.now = 181
             return proc
         self.assertEqual(self.call(launch), 1)
         self.assertEqual(proc.kills, 1)
@@ -271,7 +272,7 @@ class SupervisorTests(unittest.TestCase):
         self.assertTrue(result['termination_confirmed'])
         self.assertEqual(proc.terminates, 1)
         self.assertEqual(proc.kills, 0)
-        self.assertEqual(proc.waits, [120, 1])
+        self.assertEqual(proc.waits, [180, 1])
 
     def test_custom_signal_cancellation_base_exception_is_retained(self):
         class SignalCancelled(BaseException):
@@ -325,10 +326,10 @@ class SupervisorTests(unittest.TestCase):
         self.assertEqual(self.finished()['error'], 'cancelled')
         self.assertEqual(proc.terminates, 1)
         self.assertEqual(proc.kills, 1)
-        self.assertEqual(proc.waits, [120, 1, 4])
+        self.assertEqual(proc.waits, [180, 1, 4])
 
     def test_failed_reap_is_explicit(self):
-        proc = FakeProcess((subprocess.TimeoutExpired('private', 120),
+        proc = FakeProcess((subprocess.TimeoutExpired('private', 180),
                             subprocess.TimeoutExpired('private', 5)))
         self.assertEqual(self.call(lambda *a, **k: proc), 1)
         result = self.finished()
@@ -348,7 +349,7 @@ class SupervisorTests(unittest.TestCase):
 
     def test_completed_worker_past_deadline_is_not_success(self):
         def late_finish():
-            self.clock.now = 120
+            self.clock.now = 180
             return 0
         proc = FakeProcess((late_finish,))
         def launch(*a, **k):

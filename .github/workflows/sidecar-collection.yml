@@ -1,0 +1,116 @@
+name: Nine-sidecar collection (inactive review candidate)
+on:
+  workflow_dispatch:
+    inputs:
+      owner_authorizes_requests:
+        type: boolean
+        required: true
+        default: false
+      fresh_zero_paid_usage:
+        type: boolean
+        required: true
+        default: false
+      reviewed_collection_lock_sha256:
+        type: string
+        required: true
+        default: ''
+      activation_json:
+        description: Independently reviewed one-run activation; proposals are inactive
+        type: string
+        required: true
+        default: '{}'
+      activation_sha256:
+        type: string
+        required: true
+        default: ''
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: nine-sidecar-collection
+  cancel-in-progress: false
+jobs:
+  collect:
+    if: ${{ github.repository == 'FawadKarimi/performance-v2-host-readiness' && github.event.repository.private == true && github.actor_id == '108207574' && github.triggering_actor == 'FawadKarimi' && github.ref == 'refs/heads/main' && github.run_attempt == 1 && inputs.owner_authorizes_requests && inputs.fresh_zero_paid_usage }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      CUDA_VISIBLE_DEVICES: ''
+      # Name/ID is checked independently in the authenticated run API response.
+      GITHUB_TRIGGERING_ACTOR_ID: '108207574'
+    steps:
+      - name: Retain bootstrap launch
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          launch="$RUNNER_TEMP/sidecar-launch-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          mkdir -m 700 "$launch"
+          printf '{"status":"started","collection_authorized":false}\n' > "$launch/started.json"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Verify source and capture one fresh run-identity snapshot
+        timeout-minutes: 1
+        shell: bash
+        env:
+          ACTIVATION_JSON: ${{ inputs.activation_json }}
+          ACTIVATION_SHA256: ${{ inputs.activation_sha256 }}
+          COLLECTION_LOCK_SHA256: ${{ inputs.reviewed_collection_lock_sha256 }}
+          OWNER_AUTHORIZATION: ${{ inputs.owner_authorizes_requests }}
+          BILLING_CONFIRMATION: ${{ inputs.fresh_zero_paid_usage }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          umask 077
+          launch="$RUNNER_TEMP/sidecar-launch-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          trap 'code=$?; printf "%s\n" "$code" > "$launch/bootstrap-exit.txt"' EXIT
+          # This stdlib-only check runs before any newly added bootstrap source.
+          /usr/bin/python3.12 -I -B - <<'PY'
+          import hashlib,json,os,pathlib,re
+          expected=os.environ['COLLECTION_LOCK_SHA256']
+          assert re.fullmatch('[0-9a-f]{64}',expected)
+          raw=pathlib.Path('collection-source-lock.json').read_bytes()
+          assert len(raw)<=65536 and hashlib.sha256(raw).hexdigest()==expected
+          lock=json.loads(raw)
+          assert lock['schema']=='sidecar_collection_source_lock_v1' and lock['collection_authorized'] is False
+          assert 1<=len(lock['files'])<=100
+          assert {'sidecar_bootstrap.py','.github/workflows/sidecar-collection.yml'}<=set(lock['files'])
+          for name,digest in lock['files'].items():
+              assert isinstance(name,str) and re.fullmatch(r'[A-Za-z0-9_./-]+',name)
+              assert not name.startswith('/') and '..' not in name.split('/')
+              p=pathlib.Path(name)
+              assert p.is_file() and not any(x.is_symlink() for x in (p,*p.parents))
+              assert hashlib.sha256(p.read_bytes()).hexdigest()==digest
+          PY
+          ulimit -f 4096
+          /usr/bin/timeout --signal=TERM --kill-after=5s 45s /usr/bin/setpriv --no-new-privs /usr/bin/env -i PATH=/usr/bin:/bin HOME="$RUNNER_TEMP" RUNNER_TEMP="$RUNNER_TEMP" GITHUB_WORKSPACE="$GITHUB_WORKSPACE" GITHUB_ACTIONS=true GITHUB_REPOSITORY="$GITHUB_REPOSITORY" GITHUB_SHA="$GITHUB_SHA" GITHUB_REF="$GITHUB_REF" GITHUB_RUN_ID="$GITHUB_RUN_ID" GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" GITHUB_RUN_NUMBER="$GITHUB_RUN_NUMBER" GITHUB_WORKFLOW_REF="$GITHUB_WORKFLOW_REF" GITHUB_EVENT_NAME="$GITHUB_EVENT_NAME" GITHUB_ACTOR_ID="$GITHUB_ACTOR_ID" GITHUB_TRIGGERING_ACTOR="$GITHUB_TRIGGERING_ACTOR" GITHUB_TRIGGERING_ACTOR_ID="$GITHUB_TRIGGERING_ACTOR_ID" RUNNER_NAME="$RUNNER_NAME" RUNNER_OS="$RUNNER_OS" RUNNER_ARCH="$RUNNER_ARCH" ACTIVATION_JSON="$ACTIVATION_JSON" ACTIVATION_SHA256="$ACTIVATION_SHA256" COLLECTION_LOCK_SHA256="$COLLECTION_LOCK_SHA256" OWNER_AUTHORIZATION="$OWNER_AUTHORIZATION" BILLING_CONFIRMATION="$BILLING_CONFIRMATION" GITHUB_TOKEN="$GITHUB_TOKEN" /usr/bin/python3.12 -I -B sidecar_bootstrap.py > "$launch/bootstrap-stdout.log" 2> "$launch/bootstrap-stderr.log"
+      - name: Independently admit parent and worker; at most nine literal sidecar GETs
+        timeout-minutes: 4
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          launch="$RUNNER_TEMP/sidecar-launch-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          folder="$RUNNER_TEMP/sidecar-admission-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          trap 'code=$?; printf "%s\n" "$code" > "$launch/collection-exit.txt"' EXIT
+          receipt_hash="$(sha256sum "$folder/receipt.json" | cut -d ' ' -f 1)"
+          runtime_hash="$(sha256sum "$folder/runtime.json" | cut -d ' ' -f 1)"
+          transport_hash="$(sha256sum "$folder/transport.json" | cut -d ' ' -f 1)"
+          ulimit -f 4096
+          /usr/bin/timeout --signal=TERM --kill-after=5s 195s /usr/bin/setpriv --no-new-privs /usr/bin/env -i PATH=/usr/bin:/bin HOME="$RUNNER_TEMP" RUNNER_TEMP="$RUNNER_TEMP" GITHUB_WORKSPACE="$GITHUB_WORKSPACE" GITHUB_ACTIONS=true GITHUB_REPOSITORY="$GITHUB_REPOSITORY" GITHUB_SHA="$GITHUB_SHA" GITHUB_RUN_ID="$GITHUB_RUN_ID" GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" GITHUB_RUN_NUMBER="$GITHUB_RUN_NUMBER" GITHUB_WORKFLOW_REF="$GITHUB_WORKFLOW_REF" GITHUB_EVENT_NAME="$GITHUB_EVENT_NAME" GITHUB_ACTOR_ID="$GITHUB_ACTOR_ID" GITHUB_TRIGGERING_ACTOR_ID="$GITHUB_TRIGGERING_ACTOR_ID" RUNNER_NAME="$RUNNER_NAME" RUNNER_OS="$RUNNER_OS" RUNNER_ARCH="$RUNNER_ARCH" PYTHONDONTWRITEBYTECODE=1 CUDA_VISIBLE_DEVICES= /usr/bin/python3.12 -I -B sidecar_collector.py --proposal sidecar-request-PROPOSED.json --output "$RUNNER_TEMP/pypi-evidence-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --receipt "$folder/receipt.json" --receipt-sha256 "$receipt_hash" --runtime-record "$folder/runtime.json" --runtime-sha256 "$runtime_hash" --transport-record "$folder/transport.json" --transport-sha256 "$transport_hash" > "$launch/collection-stdout.log" 2> "$launch/collection-stderr.log"
+      - name: Retain bounded partial or complete evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: nine-sidecar-collection-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/sidecar-launch-${{ github.run_id }}-${{ github.run_attempt }}/
+            ${{ runner.temp }}/sidecar-admission-${{ github.run_id }}-${{ github.run_attempt }}/
+            ${{ runner.temp }}/pypi-evidence-${{ github.run_id }}-${{ github.run_attempt }}/
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: false

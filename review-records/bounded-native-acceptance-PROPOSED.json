@@ -1,0 +1,26 @@
+{
+  "accepted": false,
+  "collection_authorized": false,
+  "evidence": {
+    "artifact_id": 11343410741,
+    "artifact_sha256": "6d94ff0353f0495dc440351bdc0360be05b0e788fbb83ff3b4385b477644f53d",
+    "attempt": 1,
+    "commit": "d0a08a9e70879c3af2cec06f7699631e927024e9",
+    "parser_tree_sha256": "6b7b5579f746ae9abb3a485b85396412fdfd94815a4fa5abbabc6692f9093cc3",
+    "python_executable_sha256": "e50d468e8b0adfb05733f5b87b3cff34829c4a8c1aea50c865aa8bdfe4bb150f",
+    "run_id": 37305200076,
+    "runtime_record_sha256": "b650feec2b4f59006618385c0dd5eb00f56fbda9a9e19c84d0fdee68ffb2ae40",
+    "source_lock_sha256": "cd2324ed632c9eaffa60b1e7ba65651874255ff84c870aca3612a3ec9f329766",
+    "tests": 167,
+    "workflow_sha256": "e39c2e7bfabad7dc764a72fda26ac01e7d156fa39ceebd32ac60d39183fb4f1a"
+  },
+  "exclusions": [
+    "no live seven-sidecar transport",
+    "new bootstrap and collection workflow not exercised by compatibility run",
+    "no checkout/upload Node binary equivalence",
+    "no full Docker acceptance",
+    "no installation, research, training or GPU authority"
+  ],
+  "review_reference": "PROPOSED: bounded offline synthetic compatibility only; independent acceptance pending",
+  "schema": "sidecar_native_acceptance_v1"
+}

@@ -89,11 +89,11 @@ class CollectorTests(unittest.TestCase):
         if rehash:
             self.proposal['requests'][0]['expected_response_sha256'] = hashlib.sha256(raw).hexdigest()
 
-    def test_all_seven_exact_order_and_no_approval(self):
+    def test_all_nine_exact_order_and_no_approval(self):
         report = self.run_collect()
         self.assertEqual(report['status'], 'metadata_collected_not_approved')
-        self.assertEqual(report['requests_attempted'], 7)
-        self.assertEqual(report['requests_validated'], 7)
+        self.assertEqual(report['requests_attempted'], 9)
+        self.assertEqual(report['requests_validated'], 9)
         self.assertEqual(report['retained_body_bytes'], sum(map(len,self.bodies)))
         self.assertEqual(self.transport.calls, [(r['method'],r['url'],r['headers']) for r in self.proposal['requests']])
         for flag in sc.FALSE_RESULT_FLAGS:
@@ -101,7 +101,7 @@ class CollectorTests(unittest.TestCase):
         self.assertTrue(all(x.closed for x in self.responses))
         from sidecar_supervisor import validate_worker_outputs
         proof = validate_worker_outputs(self.proposal, self.evidence.path)
-        self.assertEqual(proof['requests_validated'], 7)
+        self.assertEqual(proof['requests_validated'], 9)
         self.assertEqual(proof['retained_body_bytes'], report['retained_body_bytes'])
 
     def test_digest_mismatch_never_parses_and_stops(self):

@@ -1,4 +1,4 @@
-"""Seven frozen sidecar GETs. Packaged records do not authorize execution."""
+"""Nine frozen sidecar GETs. Packaged records do not authorize execution."""
 from __future__ import annotations
 
 import argparse

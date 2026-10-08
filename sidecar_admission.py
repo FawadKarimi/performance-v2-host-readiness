@@ -15,8 +15,8 @@ import collector
 import output_security
 import runtime_acceptance
 
-PROPOSAL_SHA256 = 'ad7c7e726ba0c5df2ecd74c601f9036570c5bbc92206f7e98dda230d6054fe9b'
-SCOPE = '7_hash_bound_metadata_gets_only'
+PROPOSAL_SHA256 = '3d24522de536bb1d64617b9efc5a7ddac1a414b199a65a59ad37c5146ed69283'
+SCOPE = '9_hash_bound_metadata_gets_only'
 SCHEMA = 'pv2_sidecar_admission_v1'
 TRANSPORT_SCHEMA = 'pv2_sidecar_transport_acceptance_v1'
 SOURCE_FILES = ('sidecar_contract.py', 'sidecar_metadata.py', 'sidecar_transport.py',
@@ -197,9 +197,9 @@ def load_grant(proposal_path, receipt_path, expected_raw_hash, source_dir, outpu
                transport_path=None, transport_hash=None, runtime_observe=None):
     env = os.environ if env is None else env
     now = dt.datetime.now(dt.timezone.utc)
-    proposal = read_record(proposal_path, PROPOSAL_SHA256, 65536, 'sidecar_proposal')
-    from sidecar_contract import validate_proposal
-    validate_proposal(proposal)
+    proposal = read_record(proposal_path, PROPOSAL_SHA256, 32768, 'sidecar_proposal')
+    from sidecar_contract import _runtime_view, validate_proposal
+    proposal = validate_proposal(_runtime_view(proposal))
     receipt = read_record(receipt_path, expected_raw_hash, 65536, 'sidecar_authorization')
     need(receipt.get('schema') == SCHEMA and receipt.get('scope') == SCOPE,
          'sidecar_authorization_scope')

@@ -73,7 +73,8 @@ class AdmissionTests(unittest.TestCase):
             expires_utc=(self.now + dt.timedelta(minutes=15)).isoformat())
         self.receipt_path = self.folder / 'receipt-fixture.json'
         self.proposal_path = ROOT / 'sidecar-request-PROPOSED.json'
-        self.proposal = json.loads(self.proposal_path.read_text(encoding='utf-8'))
+        from sidecar_contract import load_proposal
+        self.proposal = load_proposal(self.proposal_path)
         self.output_policy = {'external_root': str(self.root), 'repository_roots': [str(self.sources)]}
         self.mocks = []
         for target, kwargs in (
