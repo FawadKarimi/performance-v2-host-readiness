@@ -112,7 +112,7 @@ class DeltaTests(unittest.TestCase):
         import output_security as o
         with patch.object(o,'observe',return_value={},side_effect=None if created else exc) as observed, patch.object(o,'verify_created',side_effect=exc if created else None) as made:
             self.assertEqual(self.execute(paths=d.private_paths),2)
-            observed.assert_called_once_with(self.output.parent,self.root,allow_home_default_acl=False)
+            observed.assert_called_once_with(self.output.parent,self.root,allow_home_default_acl=True)
             if not created:made.assert_not_called()
         self.observe.assert_not_called();self.run_tests.assert_not_called()
         for name in ('failure.json','source-after.json','exit-status.json','finished.json','evidence-ledger.json'):
@@ -165,3 +165,53 @@ class DeltaTests(unittest.TestCase):
         failure=json.loads((self.output/'failure.json').read_bytes())
         self.assertEqual(failure,{'stage':'private_paths','code':'unexpected_failure','category':'type_error'})
         self.assertTrue((self.output/'evidence-ledger.json').exists())
+
+    def home_policy(self,text=None,path='/home',depth=3,owner=0,gid=0,mode=0o755,uid=1001,euid=1001,accepted=True):
+        import output_security as o
+        from types import SimpleNamespace
+        if text is None:text=self.home_acl()
+        with patch.object(o.os,'getuid',return_value=uid,create=True),patch.object(o.os,'geteuid',return_value=euid,create=True):
+            return o.reviewed_home_acl(text,Path(path),depth,SimpleNamespace(st_uid=owner,st_gid=gid,st_mode=mode),accepted)
+
+    def home_acl(self,uid=1001):
+        return 'user::rwx\ngroup::r-x\nother::r-x\ndefault:user::rwx\ndefault:user:'+str(uid)+':rwx\ndefault:group::r-x\ndefault:mask::rwx\ndefault:other::r-x\n'
+
+    def test_exact_observed_home_pattern_accepted(self):
+        access,record=self.home_policy()
+        self.assertEqual(access,['user::rwx','group::r-x','other::r-x'])
+        self.assertEqual(record['policy'],'exact_home_default_acl_v1')
+        self.assertEqual(record['real_uid'],1001)
+
+    def test_current_uid_not_historical_uid(self):
+        self.assertEqual(self.home_policy(text=self.home_acl(2002),uid=2002,euid=2002)[1]['real_uid'],2002)
+        with self.assertRaises(ValueError):self.home_policy(uid=2002,euid=2002)
+
+    def test_home_identity_and_scope_negative_matrix(self):
+        for change in ({'path':'/home/runner'},{'path':'/tmp'},{'depth':0},{'owner':1001},{'gid':1001},{'mode':0o775},{'mode':0o700},{'uid':0,'euid':0},{'euid':2002},{'accepted':False}):
+            with self.subTest(change=change),self.assertRaises(ValueError):self.home_policy(**change)
+
+    def test_other_acl_patterns_rejected(self):
+        text=self.home_acl()
+        for altered in (text+'default:user:2002:rwx\n',text+'user::rwx\n',text.replace('group::r-x','group::rwx'),text.replace('default:mask::rwx','default:mask::r-x'),text.replace('default:user:1001:rwx','default:user:1002:rwx'),text.replace('other::r-x','other::---'),text+'# comment\n',text.replace('default:user:1001:rwx','default:user:1001:rwx #effective:r-x')):
+            with self.subTest(acl=altered),self.assertRaises(ValueError):self.home_policy(text=altered)
+
+    def test_adapter_exact_policy_does_not_bypass_created_check(self):
+        import output_security as o
+        def observed(*args,**kwargs):
+            self.assertIs(kwargs['allow_home_default_acl'],True)
+            access,record=self.home_policy()
+            return {'reviewed_default_acl_exception':record}
+        with patch.object(o,'observe',side_effect=observed),patch.object(o,'verify_created',side_effect=ValueError('created_evidence_acl_rejected')) as created:
+            self.assertEqual(self.execute(paths=d.private_paths),2)
+            created.assert_called_once_with(self.output)
+        self.observe.assert_not_called();self.run_tests.assert_not_called()
+        self.assertEqual(json.loads((self.output/'failure.json').read_bytes())['stage'],'private_paths.created')
+
+    def test_created_file_and_directory_reject_default_acl(self):
+        import output_security as o
+        from types import SimpleNamespace
+        for mode in (0o40700,0o100600):
+            st=SimpleNamespace(st_mode=mode,st_uid=1001,st_gid=1001,st_dev=1,st_ino=2,st_nlink=1)
+            with self.subTest(mode=mode),patch.object(o.os,'getuid',return_value=1001,create=True),patch.object(o.os,'geteuid',return_value=1001,create=True),patch.object(Path,'lstat',return_value=st):
+                command=Mock(return_value=SimpleNamespace(returncode=0,stdout=self.home_acl().encode(),stderr=b''))
+                with self.assertRaisesRegex(ValueError,'created_evidence_acl_rejected'):o.verify_created(Path('invented'),command=command)

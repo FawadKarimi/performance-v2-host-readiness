@@ -4,8 +4,8 @@
   "execution_authorized": false,
   "files": {
     ".github/workflows/sidecar-native-delta.yml": "19b861b61c5ab6fd8a907b33862d5faa439f7e569ad67c0aff846a9dab2d85ad",
-    "compatibility/nine_delta.py": "2ba2c3a99f108fa7e9fbacbe99cfb13fac7208bee5278846505ab32f5c8976fc",
-    "compatibility/test_nine_delta.py": "44b79d356a974eaf904c9c9f4132d7b6b4e32021365706f7339313e9b4f45cbe"
+    "compatibility/nine_delta.py": "aa85b2b1b511a4e1b80e27008bb9afb5004c7acda06cdc1b0c30f4294b81f63f",
+    "compatibility/test_nine_delta.py": "61847bc7f6073f0ea4cdf73bd516b65f6405feb4a745057ff0f783eb0175757b"
   },
   "schema": "nine_sidecar_native_delta_lock_v1"
 }

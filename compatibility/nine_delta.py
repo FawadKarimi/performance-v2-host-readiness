@@ -99,7 +99,9 @@ def private_paths(root, output):
             if isinstance(exc,output_security.ACLRejected):
                 observation=output_security.safe_acl_diagnostic(exc.observation)
             raise PathFailure(stage,code,safe_category(exc),observation) from None
-    paths=checked('private_paths.observe',lambda:output_security.observe(output.parent,root,allow_home_default_acl=False))
+    # Review-only native synthetic scope: exact_home_default_acl_v1 only.
+    # Created evidence still uses verify_created without any ACL exception.
+    paths=checked('private_paths.observe',lambda:output_security.observe(output.parent,root,allow_home_default_acl=True))
     paths['created']=checked('private_paths.created',lambda:output_security.verify_created(output))
     return paths
 
