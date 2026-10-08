@@ -63,11 +63,44 @@ def context():
                 provenance='runner environment only; no authenticated API call or collection admission')
 
 
+OUTPUT_CODES = frozenset(('extended_or_default_acl_rejected','acl_format','acl_write_permission',
+    'home_acl_identity_rejected','home_acl_pattern_rejected','path_not_directory','path_owner_mode',
+    'output_check_deadline','acl_unavailable','path_changed','output_root_uid','mountinfo_size',
+    'mount_missing','mount_ambiguous','mount_device_mismatch','mount_filesystem_not_reviewed',
+    'mount_read_only','created_evidence_identity_rejected','created_evidence_changed',
+    'created_evidence_acl_rejected'))
+
+
+def safe_category(exc):
+    for cls,label in ((FileNotFoundError,'missing_file'),(PermissionError,'permission_error'),
+                      (TimeoutError,'timeout'),(OSError,'os_error'),(ValueError,'value_error'),
+                      (TypeError,'type_error')):
+        if isinstance(exc,cls):return label
+    return 'unexpected_exception'
+
+
+class PathFailure(Exception):
+    def __init__(self,stage,code,category,observation=None):
+        self.record={'stage':stage,'code':code,'category':category}
+        if observation is not None:self.record['acl_observation']=observation
+
+
 def private_paths(root, output):
     sys.path.insert(0,str(root))
     import output_security
-    paths=output_security.observe(output.parent,root,allow_home_default_acl=False)
-    paths['created']=output_security.verify_created(output)
+    def checked(stage,operation):
+        try:return operation()
+        except Exception as exc:
+            code='output_security_unexpected'
+            if isinstance(exc,ValueError) and len(exc.args)==1 and type(exc.args[0]) is str and exc.args[0] in OUTPUT_CODES:
+                code=exc.args[0]
+            elif isinstance(exc,FileNotFoundError):code='acl_unavailable'
+            observation=None
+            if isinstance(exc,output_security.ACLRejected):
+                observation=output_security.safe_acl_diagnostic(exc.observation)
+            raise PathFailure(stage,code,safe_category(exc),observation) from None
+    paths=checked('private_paths.observe',lambda:output_security.observe(output.parent,root,allow_home_default_acl=False))
+    paths['created']=checked('private_paths.created',lambda:output_security.verify_created(output))
     return paths
 
 
@@ -98,7 +131,7 @@ def synthetic(root,evidence):
 def execute(root,output,expected,parent,uid,observe=n.runtime,network=n.isolation,
             run_tests=synthetic,run_context=context,paths=private_paths):
     evidence=n.Evidence(output)
-    errors=[];binding=None;code=2;old={}
+    errors=[];binding=None;code=2;old={};stage="initialization"
     def record(name,obj):
         try:evidence.write(name,obj)
         except BaseException:errors.append('evidence_write_'+name)
@@ -106,20 +139,33 @@ def execute(root,output,expected,parent,uid,observe=n.runtime,network=n.isolatio
     try:
         for sig in (signal.SIGTERM,signal.SIGINT):old[sig]=signal.signal(sig,cancelled)
         evidence.write('started.json',dict(status='incomplete',**n.FALSE_FLAGS))
+        stage='source_verification'
         binding=verify_sources(root,expected);evidence.write('source-before.json',binding)
+        stage='run_context'
         evidence.write('run-context.json',run_context())
+        stage='network_isolation'
         evidence.write('network-isolation.json',network(parent,uid))
+        stage='private_paths'
         evidence.write('private-paths.json',paths(root,output))
+        stage='runtime_verification'
         actual=observe(root);evidence.write('runtime-observed.json',actual)
         reference=n.strict_json(n.read_file(root/'reference/metadata-runtime-acceptance.json'))
         n.need(reference.get('metadata_runtime_accepted') is True and
                reference.get('scope')=='public_pypi_metadata_only' and
                all(actual[k]==reference[k] for k in ('python','parser')),'runtime_identity_drift')
+        stage='synthetic_tests'
         result=validate_result(run_tests(root,evidence))
         evidence.write('test-results.json',result);code=0
     except BaseException as exc:
-        errors.append(str(exc) if isinstance(exc,n.Rejected) else
-                      'interrupted' if isinstance(exc,(n.Cancelled,KeyboardInterrupt,SystemExit)) else 'delta_failure')
+        failure={'stage':stage,'code':'unexpected_failure','category':safe_category(exc)}
+        if isinstance(exc,PathFailure):failure=dict(exc.record)
+        elif isinstance(exc,(n.Cancelled,KeyboardInterrupt,SystemExit)):
+            failure.update(code='interrupted',category='interruption')
+        elif isinstance(exc,n.Rejected):
+            # Existing native rejections have fixed codes; do not persist arbitrary text.
+            failure.update(code='native_rejection',category='policy_rejection')
+        errors.append(failure['code'])
+        record('failure.json',failure)
     finally:
         try:
             after=verify_sources(root,expected)
