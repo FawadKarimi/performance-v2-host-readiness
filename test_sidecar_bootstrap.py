@@ -13,6 +13,23 @@ import test_sidecar_admission as fixtures
 
 ROOT = Path(__file__).resolve().parent
 
+# Literal fixture contract: admission SOURCE_FILES plus verify_lock requirements.
+FIXTURE_SOURCE_FILES = (
+    'sidecar_contract.py', 'sidecar_metadata.py', 'sidecar_transport.py',
+    'sidecar_collector.py', 'sidecar_supervisor.py', 'sidecar_admission.py',
+    'admission.py', 'collector.py', 'runtime_acceptance.py',
+    'output_security.py', 'worker_diagnostics.py', 'sidecar_bootstrap.py',
+    '.github/workflows/sidecar-collection.yml', 'source-lock.json',
+    'sidecar-request-PROPOSED.json',
+)
+
+
+def copy_fixture_sources(source, destination):
+    for name in FIXTURE_SOURCE_FILES:
+        dest = destination / name
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source / name, dest)
+
 
 class BootstrapTests(unittest.TestCase):
     def setUp(self):
@@ -20,11 +37,7 @@ class BootstrapTests(unittest.TestCase):
         self.f.setUp()
         self.addCleanup(self.f.doCleanups)
         self.root = self.f.sources
-        for p in ROOT.rglob('*'):
-            if p.is_file() and '__pycache__' not in p.parts:
-                dest = self.root / p.relative_to(ROOT)
-                dest.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(p, dest)
+        copy_fixture_sources(ROOT, self.root)
         # The existing fixture created a folder; bootstrap itself must create it once.
         for p in self.f.folder.iterdir():
             p.unlink()
@@ -55,8 +68,8 @@ class BootstrapTests(unittest.TestCase):
 
     def relock(self):
         lock=dict(schema='sidecar_collection_source_lock_v1',collection_authorized=False,
-            files={p.relative_to(self.root).as_posix():a.sha(p.read_bytes())
-                   for p in self.root.rglob('*') if p.is_file() and p.name!=b.LOCK_NAME})
+            files={name:a.sha((self.root/name).read_bytes())
+                   for name in FIXTURE_SOURCE_FILES})
         raw=b.encoded(lock);(self.root/b.LOCK_NAME).write_bytes(raw)
         self.lockhash=a.sha(raw);self.record['collection_source_lock_sha256']=self.lockhash
 
@@ -64,6 +77,35 @@ class BootstrapTests(unittest.TestCase):
         raw=b.encoded(self.record)
         return b.issue(raw,a.sha(raw),self.lockhash,self.env,self.root,fetch=self.fetch,
                        observe_runtime=lambda:self.actual)
+
+    def test_fixture_list_matches_required_bindings(self):
+        required=set(a.SOURCE_FILES)|{b.WORKFLOW,'sidecar_bootstrap.py',
+                                    'source-lock.json','sidecar-request-PROPOSED.json'}
+        self.assertEqual(set(FIXTURE_SOURCE_FILES),required)
+        self.assertEqual(len(FIXTURE_SOURCE_FILES),len(required))
+        self.assertEqual(set(json.loads((self.root/b.LOCK_NAME).read_bytes())['files']),required)
+        self.assertLessEqual(len(required),100)
+
+    def test_populated_git_caches_and_unrelated_files_do_not_change_fixture(self):
+        source=self.f.root/'polluted';source.mkdir()
+        copy_fixture_sources(ROOT,source)
+        for i in range(125):
+            path=source/'.git/objects'/str(i);path.parent.mkdir(parents=True,exist_ok=True)
+            path.write_bytes(b'invented git object')
+        for name in ('__pycache__/unrelated.pyc','.pytest_cache/state','unrelated.txt'):
+            path=source/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(b'unrelated')
+        clean=self.f.root/'clean';dirty=self.f.root/'dirty'
+        copy_fixture_sources(ROOT,clean);copy_fixture_sources(source,dirty)
+        inventory=lambda folder:{p.relative_to(folder).as_posix():p.read_bytes() for p in folder.rglob('*') if p.is_file()}
+        self.assertEqual(inventory(clean),inventory(dirty))
+        self.assertEqual(set(inventory(dirty)),set(FIXTURE_SOURCE_FILES))
+        # Relocking is explicit too: destination pollution cannot expand membership.
+        (self.root/'unrelated.txt').write_bytes(b'unrelated')
+        before=(self.root/b.LOCK_NAME).read_bytes();self.relock()
+        self.assertEqual((self.root/b.LOCK_NAME).read_bytes(),before)
+        (self.root/'sidecar_bootstrap.py').write_bytes(b'drift')
+        with self.assertRaisesRegex(ValueError,'collection_source_drift'):self.issue()
+        self.fetch.assert_not_called()
 
     def admit(self,worker=False):
         folder=self.f.folder

@@ -1,4 +1,4 @@
-"""Local mocked adapter regressions, separate from the frozen 176-test suite."""
+"""Local mocked adapter regressions, separate from the frozen 178-test suite."""
 import copy
 import json
 from pathlib import Path
@@ -11,7 +11,7 @@ import nine_delta as d
 
 
 def result():
-    return dict(tests=176,failures=0,errors=0,skipped=0,successful=True,
+    return dict(tests=178,failures=0,errors=0,skipped=0,successful=True,
                 network_and_subprocess_audit_deny=True,execution_authorized=False,
                 source_lock_sha256=d.COLLECTION_SHA)
 
@@ -61,7 +61,7 @@ class DeltaTests(unittest.TestCase):
         for name,row in ledger['files'].items():self.assertEqual(d.n.sha((self.output/name).read_bytes()),row['sha256'])
 
     def test_exact_counts_and_flags_required(self):
-        for key,value in [('tests',175),('tests',177),('tests',True),('failures',1),('errors',1),('skipped',1),('successful',False),('execution_authorized',True),('source_lock_sha256','0'*64)]:
+        for key,value in [('tests',177),('tests',179),('tests',True),('failures',1),('errors',1),('skipped',1),('successful',False),('execution_authorized',True),('source_lock_sha256','0'*64)]:
             r=result();r[key]=value
             with self.subTest(key=key,value=value):
                 with self.assertRaisesRegex(d.n.Rejected,'synthetic_test_results'):d.validate_result(r)

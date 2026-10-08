@@ -1,7 +1,7 @@
 {
   "collection_authorized": false,
   "compatibility_source_lock_sha256": "cd2324ed632c9eaffa60b1e7ba65651874255ff84c870aca3612a3ec9f329766",
-  "expected_offline_tests": 176,
+  "expected_offline_tests": 178,
   "files": {
     ".github/actions/node-runtime-identity/action.yml": "52e7ee20aaffe85ba0a8ec81e62cc0d97bee2899620cbd3494a8c45d642e689b",
     ".github/actions/node-runtime-identity/identity.cjs": "9a2ab3ba1650f820b8daa7447cb0df449d35f6fcf516b9db5d5cb57036b9bee7",
@@ -39,7 +39,7 @@
     "source-lock.json": "cd2324ed632c9eaffa60b1e7ba65651874255ff84c870aca3612a3ec9f329766",
     "test_nine_manifest.py": "4bb5a218652ccbe385e649f30e1bf9fefad017a3fef9c058af0f373c2ad13e7e",
     "test_sidecar_admission.py": "1d5a25927f6076e45727fb020a9fb9d8db0e38999e9425db9d58c2bea262a884",
-    "test_sidecar_bootstrap.py": "72a43d7c684a61a649d49cd11d8e459ef769df665d3668b71f7a1a5e66e5c930",
+    "test_sidecar_bootstrap.py": "420766f9c5e4a3822458178a579385fde4293587b273f73b47fbf09953488f01",
     "test_sidecar_collector.py": "7407920581385249084a4c37b2f0f67d49dc58f6da0ff3ecf896910a177f5c3f",
     "test_sidecar_contract.py": "609fb9b48d1c1e0404bf251cd186c7a2d3a90e15e4c7385b08336136225e30a0",
     "test_sidecar_metadata.py": "1f411328ffe3fa9fabb85894cb59e0871b578a3dc96964cf1b819b8133efb26e",
