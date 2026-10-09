@@ -1,16 +1,16 @@
-"""Immutable nine-request proposal contract, not network authorization."""
+"""Immutable four-request proposal contract, not network authorization."""
 import hashlib
 import json
 from pathlib import Path
 
-PROPOSAL_SHA256 = '3d24522de536bb1d64617b9efc5a7ddac1a414b199a65a59ad37c5146ed69283'
-CANONICAL_SHA256 = 'e8e9958474a633a0cd51d198b0117c44dcf437b7e2b25183468cbd881bb25fed'
-SCOPE = '9_hash_bound_metadata_gets_only'
+PROPOSAL_SHA256 = '3e698d6e50f6e03e8c27894a80822d0210d45ff1efad654920597f81b5aff0ba'
+CANONICAL_SHA256 = '4af82ef69784572148375803dbd12698592e6260626c2162e47ad90984ee9d73'
+SCOPE = '4_hash_bound_investigative_metadata_gets_only'
 ROOT_CONSTRAINTS = {'filelock':'','typing-extensions':'>=4.10.0','setuptools':'>=77.0.3',
                    'sympy':'>=1.13.3','networkx':'>=2.5.1','jinja2':'','fsspec':'>=0.8.5',
                    'numpy':'>=1.24,<3','pillow':'>=5.3.0,!=8.3.*','pyyaml':'>=6,<7',
                    'pandas':'>=2,<3','torch':'==2.13.0',
-                   'torchvision':'==0.28.0+cpu','opencv-python':''}
+                   'torchvision':'==0.28.0+cpu','opencv-python':'','markupsafe':'>=2.0','mpmath':'>=1.1.0,<1.4'}
 
 def _runtime_view(proposal):
     # Called only after exact raw SHA validation. No scope or URL synthesis.
@@ -40,5 +40,8 @@ def load_proposal(path):
 
 def known_nodes(proposal):
     validate_proposal(proposal)
+    # Alternatives are not jointly installed and must not overwrite each other.
     return {'torch':'2.13.0+cpu','torchvision':'0.28.0+cpu',
-            **{r['project']:r['version'] for r in proposal['requests']}}
+            'jinja2':'3.1.6','sympy':'1.14.0','filelock':'4.0.10',
+            'fsspec':'2026.7.0','typing-extensions':'4.16.0','networkx':'3.7',
+            'setuptools':'84.0.0','numpy':'2.5.3','pillow':'12.3.0'}

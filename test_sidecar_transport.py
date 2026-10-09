@@ -101,11 +101,11 @@ class BudgetTests(OfflineCase):
                 p['bounded_transport'][key] = value
                 with self.assertRaises(ValueError):
                     st.Budget(p, self.clock)
-        for _ in range(9):
+        for _ in range(4):
             self.b.start()
         with self.assertRaisesRegex(ValueError, 'request count'):
             self.b.start()
-        self.assertEqual(self.b.calls, 9)
+        self.assertEqual(self.b.calls, 4)
 
     def test_per_request_deadline_not_renewed_by_io(self):
         self.b.start()
@@ -116,9 +116,9 @@ class BudgetTests(OfflineCase):
             self.b.remaining()
 
     def test_aggregate_deadline_truncates_last_attempt(self):
-        self.clock.now = 175
+        self.clock.now = 75
         self.assertEqual(self.b.start(), 5)
-        self.clock.now = 180
+        self.clock.now = 80
         with self.assertRaisesRegex(TimeoutError, 'aggregate'):
             self.b.remaining()
         with self.assertRaisesRegex(TimeoutError, 'aggregate'):
@@ -174,9 +174,9 @@ class TransportTests(OfflineCase):
         for url in st.URLS:
             self.sock.raw = b'HTTP/1.1 200 OK\r\n\r\n'
             self.open(t, url=url).close()
-        self.assertEqual(self.b.calls, 9)
+        self.assertEqual(self.b.calls, 4)
         self.assertEqual(t.attempted, set(st.URLS))
-        self.assertEqual(self.dns_mock.call_count, 9)
+        self.assertEqual(self.dns_mock.call_count, 4)
 
     def test_constructor_authorization_rejected_before_dns(self):
         self.authorize_mock.side_effect = ValueError('network access disabled')

@@ -1,4 +1,4 @@
-"""Separately reviewed, fail-closed transport for nine literal metadata GETs.
+"""Separately reviewed, fail-closed transport for four literal metadata GETs.
 
 No index, artifact client, proxy, redirect, retry or address fallback exists here.
 Construction and each open require an independent sidecar admission grant.  The
@@ -18,18 +18,8 @@ from urllib.parse import urlsplit
 HOST = 'files.pythonhosted.org'
 HEADER_BYTE_CAP = 16384  # Additional conservative transport review bound.
 PER_BODY_CAP = 262144
-TOTAL_BODY_CAP = 2359296
-URLS = (
-    'https://files.pythonhosted.org/packages/5b/2a/4b1ea3f2180be251a5cff1e70c8a5b7994ffa5c8eab8937901f8a9db58fe/filelock-4.0.10-py3-none-any.whl.metadata',
-    'https://files.pythonhosted.org/packages/fd/3c/6a2bf344106328fd04963664a60b9bb6496fc25df8e962fcdc1367285fb9/fsspec-2026.7.0-py3-none-any.whl.metadata',
-    'https://files.pythonhosted.org/packages/62/a1/3d680cbfd5f4b8f15abc1d571870c5fc3e594bb582bc3b64ea099db13e56/jinja2-3.1.6-py3-none-any.whl.metadata',
-    'https://files.pythonhosted.org/packages/7e/cd/fe58041e9011f307c490e3e17dd48cc516448f7c698a3f2d9d9d65d7e6a8/networkx-3.7-py3-none-any.whl.metadata',
-    'https://files.pythonhosted.org/packages/95/9c/c510029fc6ef33a6275cd2c5d3cecd6613dfd6aa401d57c54f1c18852ccf/setuptools-84.0.0-py3-none-any.whl.metadata',
-    'https://files.pythonhosted.org/packages/a2/09/77d55d46fd61b4a135c444fc97158ef34a095e5681d0a6c10b75bf356191/sympy-1.14.0-py3-none-any.whl.metadata',
-    'https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl.metadata',
-    'https://files.pythonhosted.org/packages/65/af/aa78d1a88805456e212b65461354cd943197fb9acecc4c90fd12295123a3/numpy-2.5.3-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata',
-    'https://files.pythonhosted.org/packages/84/21/a35af28dcc61f37ed850a2d64c65c701321dfbf25085e469d5559360cbbf/pillow-12.3.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata',
-)
+TOTAL_BODY_CAP = 1048576
+URLS = ('https://files.pythonhosted.org/packages/3c/2e/8d0c2ab90a8c1d9a24f0399058ab8519a3279d1bd4289511d74e909f060e/markupsafe-3.0.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata', 'https://files.pythonhosted.org/packages/4f/a7/aeedb5140afa41fc74c225e9184ab96723a6e873b6ee1c9fede7283456d8/markupsafe-3.0.4-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata', 'https://files.pythonhosted.org/packages/d4/cf/3965bddbb4f1a61c49aacae0e78fd1fe36b5dc36c797b31f30cf07dcbbb7/mpmath-1.2.1-py3-none-any.whl.metadata', 'https://files.pythonhosted.org/packages/43/e3/7d92a15f894aa0c9c4b49b8ee9ac9850d6e63b03c9c32c0367a13ae62209/mpmath-1.3.0-py3-none-any.whl.metadata')
 EXPECTED_HEADERS = {'Accept': 'text/plain', 'Accept-Encoding': 'identity'}
 
 
@@ -84,12 +74,12 @@ class Budget:
         require(b['per_response_byte_cap'] == PER_BODY_CAP and
                 b['aggregate_response_byte_cap'] == TOTAL_BODY_CAP and
                 b['per_request_timeout_seconds'] == 20 and
-                b['aggregate_deadline_seconds'] == 180 and
-                b['exact_get_count'] == b['max_attempts'] == 9,
+                b['aggregate_deadline_seconds'] == 80 and
+                b['exact_get_count'] == b['max_attempts'] == 4,
                 'sidecar budget differs from frozen bounds')
         self.clock = clock
         self.bounds = copy.deepcopy(b)
-        self.end = clock() + 180
+        self.end = clock() + 80
         self.request_end = None
         self.total = 0
         self.calls = 0
@@ -100,7 +90,7 @@ class Budget:
         now = self.clock()
         if now >= self.end:
             raise TimeoutError('aggregate deadline exceeded')
-        require(self.calls < 9, 'request count exceeded')
+        require(self.calls < 4, 'request count exceeded')
         self.calls += 1
         self.request_end = min(now + 20, self.end)
         return self.remaining()
@@ -203,7 +193,7 @@ class TLSMetadataTransport:
         require(request is not None and request['method'] == method and
                 request['headers'] == headers == EXPECTED_HEADERS,
                 'unapproved request headers')
-        require(url not in self.attempted and len(self.attempted) < 9,
+        require(url not in self.attempted and len(self.attempted) < 4,
                 'duplicate request/retry or request limit exceeded')
         require(budget.request_end is not None and budget.calls == len(self.attempted) + 1,
                 'collector must start exactly one budget attempt before open')

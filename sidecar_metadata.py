@@ -42,7 +42,7 @@ def _require(condition, code, evidence=None):
         raise MetadataError(code, evidence)
 
 
-def _headers(text):
+def _headers(text, *, require_python=True):
     """Strict RFC822-style headers; never parse bodies or execute declarations."""
     _require("\r" not in text.replace("\r\n", ""), "metadata_bare_cr")
     text = text.replace("\r\n", "\n")
@@ -74,7 +74,7 @@ def _headers(text):
     for key, value in fields:
         _require(key in REPEATABLE or key not in result, "metadata_duplicate_singleton")
         result.setdefault(key, []).append(value)
-    for key in ("metadata-version", "name", "version", "requires-python"):
+    for key in ("metadata-version", "name", "version") + (("requires-python",) if require_python else ()):
         _require(key in result and len(result[key]) == 1 and bool(result[key][0]),
                  "metadata_required_field")
     _require(result["metadata-version"][0] in {"1.2", "2.1", "2.2", "2.3", "2.4", "2.5"},
@@ -155,7 +155,7 @@ def _intersection(requirement, root, known, SpecifierSet, Version):
     return "intersection_unresolved" if root is not None else "child_version_unselected"
 
 
-def parse_metadata(raw, request, target, known_nodes, root_constraints):
+def parse_metadata(raw, request, target, known_nodes, root_constraints, *, investigate_missing_python=False):
     """Verify and parse one sidecar; no I/O, imports of nominees, or recursion.
 
     Input mappings: immutable proposal request/target, canonical-name -> exact
@@ -179,7 +179,11 @@ def parse_metadata(raw, request, target, known_nodes, root_constraints):
     except UnicodeDecodeError as exc:
         raise MetadataError("metadata_invalid_utf8") from exc
     _require(not text.startswith("\ufeff"), "metadata_bom_rejected")
-    headers = _headers(text)
+    if investigate_missing_python:
+        _require(request.get('project') == 'mpmath' and
+                 request.get('frozen_source', {}).get('requires_python') is None,
+                 'investigation_scope_rejected')
+    headers = _headers(text, require_python=not investigate_missing_python)
     try:
         from packaging.requirements import Requirement, InvalidRequirement
         from packaging.specifiers import SpecifierSet, InvalidSpecifier
@@ -205,14 +209,20 @@ def parse_metadata(raw, request, target, known_nodes, root_constraints):
         version = headers["version"][0]
         Version(version)
         _require(version == request["version"], "metadata_version_mismatch")
-        requires_python_raw = headers["requires-python"][0]
-        requires_python = SpecifierSet(requires_python_raw)
+        requires_python_raw = headers.get("requires-python", [None])[0]
+        requires_python = None if requires_python_raw is None else SpecifierSet(requires_python_raw)
         index_python_raw = request["frozen_source"]["requires_python"]
-        _require(isinstance(index_python_raw, str) and bool(index_python_raw),
-                 "metadata_frozen_python_missing")
-        _require(requires_python == SpecifierSet(index_python_raw), "metadata_requires_python_mismatch")
-        _require(requires_python.contains(target["python_full_version"], prereleases=True),
-                 "metadata_python_incompatible")
+        if investigate_missing_python:
+            _require(requires_python_raw is None or bool(requires_python_raw), 'metadata_required_field')
+            if requires_python is not None:
+                _require(requires_python.contains(target['python_full_version'], prereleases=True),
+                         'metadata_python_incompatible')
+        else:
+            _require(isinstance(index_python_raw, str) and bool(index_python_raw),
+                     "metadata_frozen_python_missing")
+            _require(requires_python == SpecifierSet(index_python_raw), "metadata_requires_python_mismatch")
+            _require(requires_python.contains(target["python_full_version"], prereleases=True),
+                     "metadata_python_incompatible")
         for mapping in (known_nodes, root_constraints):
             for key, value in mapping.items():
                 _require(isinstance(key, str) and canonicalize_name(key, validate=True) == key
@@ -235,12 +245,19 @@ def parse_metadata(raw, request, target, known_nodes, root_constraints):
         "dynamic_fields": list(headers.get("dynamic", [])),
         "name_raw": headers["name"][0], "name": name, "version": version,
         "requires_python_raw": requires_python_raw,
-        "requires_python": str(requires_python), "frozen_target": dict(target),
+        "requires_python": None if requires_python is None else str(requires_python), "frozen_target": dict(target),
         "root_constraint": root_constraints.get(name),
         "scope": "runtime_no_extras", "edges": [], "unresolved_children": [],
         "dependency_closure_complete": False, "install_selection_approved": False,
         "automatic_recursion": False,
     }
+    if investigate_missing_python:
+        result['eligibility'] = 'blocked'
+        result['eligibility_reason'] = ('requires_python_missing_in_index_and_sidecar'
+            if requires_python_raw is None else 'requires_python_missing_in_index')
+    else:
+        result['eligibility'] = 'metadata_checks_passed_not_install_approved'
+        result['eligibility_reason'] = None
     for raw_requirement in headers.get("requires-dist", []):
         _require(bool(raw_requirement), "metadata_empty_requires_dist", result)
         try:

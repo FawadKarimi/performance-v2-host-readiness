@@ -1,4 +1,4 @@
-"""Nine-sidecar synthetic-only adapter; reuses reviewed native evidence controls."""
+"""Four-sidecar synthetic-only adapter (reviewed adapter filename retained); reuses reviewed native evidence controls."""
 import argparse
 from contextlib import redirect_stdout, redirect_stderr
 import os
@@ -14,8 +14,8 @@ import native_linux as n
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = '.github/workflows/sidecar-native-delta.yml'
-COLLECTION_SHA = '68343ecbb90c474d0eaf8f5bd4d9c05e720f2ff32b5cd05a67bac016b31c4e2f'
-PROPOSAL_SHA = '3d24522de536bb1d64617b9efc5a7ddac1a414b199a65a59ad37c5146ed69283'
+COLLECTION_SHA = 'f49990cd7571179ba92ce7ba7381eb58c73bec4cf7aea03223c6e40c2cce9ee9'
+PROPOSAL_SHA = '3e698d6e50f6e03e8c27894a80822d0210d45ff1efad654920597f81b5aff0ba'
 OVERLAY_FILES = {WORKFLOW, 'compatibility/nine_delta.py', 'compatibility/test_nine_delta.py'}
 
 
@@ -33,10 +33,10 @@ def verify_sources(root, expected):
     collection=n.strict_json(collection_raw)
     n.need(collection.get('schema')=='sidecar_collection_source_lock_v1' and
            collection.get('collection_authorized') is False and
-           collection.get('expected_offline_tests')==182 and
-           len(collection.get('files',{}))==43,'collection_lock_scope')
+           collection.get('expected_offline_tests')==93 and
+           len(collection.get('files',{}))==45,'collection_lock_scope')
     files={**collection['files'],**overlay['files']}
-    n.need(len(files)==46,'delta_overlap')
+    n.need(len(files)==48,'delta_overlap')
     for name,digest in files.items():
         p=PurePosixPath(name)
         n.need(not p.is_absolute() and '..' not in p.parts and '\\' not in name and ':' not in name,'source_path')
@@ -107,7 +107,7 @@ def private_paths(root, output):
 
 
 def validate_result(result):
-    n.need(type(result) is dict and type(result.get('tests')) is int and result['tests']==182 and
+    n.need(type(result) is dict and type(result.get('tests')) is int and result['tests']==93 and
            all(type(result.get(k)) is int and result[k]==0 for k in ('failures','errors','skipped')) and
            result.get('successful') is True and result.get('network_and_subprocess_audit_deny') is True and
            result.get('execution_authorized') is False and

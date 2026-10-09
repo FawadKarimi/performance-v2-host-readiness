@@ -15,8 +15,8 @@ import collector
 import output_security
 import runtime_acceptance
 
-PROPOSAL_SHA256 = '3d24522de536bb1d64617b9efc5a7ddac1a414b199a65a59ad37c5146ed69283'
-SCOPE = '9_hash_bound_metadata_gets_only'
+PROPOSAL_SHA256 = '3e698d6e50f6e03e8c27894a80822d0210d45ff1efad654920597f81b5aff0ba'
+SCOPE = '4_hash_bound_investigative_metadata_gets_only'
 SCHEMA = 'pv2_sidecar_admission_v1'
 TRANSPORT_SCHEMA = 'pv2_sidecar_transport_acceptance_v1'
 SOURCE_FILES = ('sidecar_contract.py', 'sidecar_metadata.py', 'sidecar_transport.py',

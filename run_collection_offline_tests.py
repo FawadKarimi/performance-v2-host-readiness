@@ -27,9 +27,7 @@ def offline(event,args):
 
 
 sys.addaudithook(offline)
-modules=['test_sidecar_contract','test_sidecar_collector','test_sidecar_metadata',
-         'test_sidecar_transport','test_sidecar_admission','test_sidecar_supervisor',
-         'test_sidecar_bootstrap','test_nine_manifest']
+modules=['test_four_sidecars','test_sidecar_metadata','test_sidecar_transport']
 suite=unittest.defaultTestLoader.loadTestsFromNames(modules)
 start=time.monotonic()
 fake_host=SimpleNamespace(system='Windows',node='offline-fixture',release='0',

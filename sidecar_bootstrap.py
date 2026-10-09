@@ -67,7 +67,7 @@ def verify_lock(root, expected):
     files = lock.get('files')
     need(type(files) is dict and 1 <= len(files) <= 100, 'collection_lock_files')
     required = set(a.SOURCE_FILES) | {WORKFLOW, 'sidecar_bootstrap.py',
-                'source-lock.json', 'sidecar-request-PROPOSED.json'}
+                'reference/sidecar-compatibility-source-lock.json', 'sidecar-request-PROPOSED.json'}
     need(required <= set(files), 'collection_lock_missing')
     for name, digest in files.items():
         need(isinstance(name, str) and re.fullmatch(r'[A-Za-z0-9_.\-/]+', name)
@@ -77,7 +77,7 @@ def verify_lock(root, expected):
         need(not any(p.is_symlink() for p in (path, *path.parents)),
              'collection_lock_symlink')
         need(path.is_file() and a.sha(path.read_bytes()) == digest, 'collection_source_drift')
-    need(a.sha((root / 'source-lock.json').read_bytes()) == COMPAT['source_lock_sha256'],
+    need(a.sha((root / 'reference/sidecar-compatibility-source-lock.json').read_bytes()) == COMPAT['source_lock_sha256'],
          'historical_lock_drift')
     need(a.sha((root / 'sidecar-request-PROPOSED.json').read_bytes()) == a.PROPOSAL_SHA256,
          'proposal_drift')

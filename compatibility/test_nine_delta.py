@@ -1,4 +1,4 @@
-"""Local mocked adapter regressions, separate from the frozen 182-test suite."""
+"""Local mocked adapter regressions, separate from the frozen 93-test suite."""
 import copy
 import json
 from pathlib import Path
@@ -11,7 +11,7 @@ import nine_delta as d
 
 
 def result():
-    return dict(tests=182,failures=0,errors=0,skipped=0,successful=True,
+    return dict(tests=93,failures=0,errors=0,skipped=0,successful=True,
                 network_and_subprocess_audit_deny=True,execution_authorized=False,
                 source_lock_sha256=d.COLLECTION_SHA)
 
@@ -37,7 +37,7 @@ class DeltaTests(unittest.TestCase):
     def test_current_collection_and_overlay_bindings(self):
         binding=d.verify_sources(self.root,self.digest)
         self.assertEqual(binding['collection_source_lock_sha256'],d.COLLECTION_SHA)
-        self.assertEqual(len(binding['files']),46)
+        self.assertEqual(len(binding['files']),48)
 
     def test_historical_lock_cannot_substitute(self):
         old=d.n.sha((self.root/'source-lock.json').read_bytes())

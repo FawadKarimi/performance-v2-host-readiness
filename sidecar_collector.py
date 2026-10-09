@@ -1,4 +1,4 @@
-"""Nine frozen sidecar GETs. Packaged records do not authorize execution."""
+"""Four frozen investigative sidecar GETs. Packaged records do not authorize execution."""
 from __future__ import annotations
 
 import argparse
@@ -127,7 +127,7 @@ def collect(proposal, transport, evidence, clock=time.monotonic, grant=None):
     authorize_network(proposal, grant)
     budget = Budget(proposal, clock)
     report = dict(schema='sidecar_collection_report_v1', proposal_sha256=PROPOSAL_SHA256,
-        status='incomplete', requests_attempted=0, requests_validated=0,
+        status='incomplete', requests_attempted=0, requests_validated=0, requests_captured=0, eligibility_blocked=0,
         retained_body_bytes=0, failures=[], results=[], metadata_nominees_only=True,
         release_upload_cutoff_utc=proposal['release_upload_cutoff_utc'])
     report.update({name: False for name in FALSE_RESULT_FLAGS})
@@ -194,15 +194,20 @@ def collect(proposal, transport, evidence, clock=time.monotonic, grant=None):
                 if hashlib.sha256(body).hexdigest() != request['expected_response_sha256']:
                     raise CollectionError('digest_mismatch')
                 record['digest_verified_before_parse'] = True
-                result = parse_metadata(bytes(body), request, proposal['target'], nodes, ROOT_CONSTRAINTS)
+                result = parse_metadata(bytes(body), request, proposal['target'], nodes, ROOT_CONSTRAINTS,
+                    investigate_missing_python=request['project']=='mpmath' and request['frozen_source']['requires_python'] is None)
                 evidence.write(prefix + '-metadata.json', result)
-                combined = check_collection_constraints(parsed_results + [result], ROOT_CONSTRAINTS,
-                                                        nodes, proposal['target'])
+                review = check_collection_constraints([result], ROOT_CONSTRAINTS, nodes, proposal['target'])
+                combined = {'schema':'sidecar_alternative_constraints_v1',
+                    'candidates':parsed_results + [{'request_id':request['id'], 'metadata':result, 'constraints':review}],
+                    'joint_installation_assumed':False, 'dependency_closure_complete':False}
                 budget.remaining()
                 evidence.write(prefix + '-constraints.json', combined)
                 budget.remaining()
-                record['status'] = 'metadata_validated_not_approved'
-                parsed_results.append(result)
+                record['status'] = 'metadata_captured_eligibility_blocked' if result['eligibility']=='blocked' else 'metadata_validated_not_approved'
+                record['eligibility'] = result['eligibility']
+                record['eligibility_reason'] = result['eligibility_reason']
+                parsed_results.append(combined['candidates'][-1])
             except BaseException as exc:
                 record['status'] = 'cancelled' if failure_code(exc) == 'cancelled' else 'failed'
                 record['error_code'] = failure_code(exc)
@@ -231,14 +236,16 @@ def collect(proposal, transport, evidence, clock=time.monotonic, grant=None):
                     hash_scope='retained body; may be incomplete on failure',
                     elapsed_seconds=max(0, clock() - started))
                 evidence.write(prefix + '-receipt.json', record)
-            if record['status'] != 'metadata_validated_not_approved':
+            if record['status'] not in ('metadata_validated_not_approved', 'metadata_captured_eligibility_blocked'):
                 report['failures'].append(dict(request_id=request['id'], code=record.get('error_code', 'worker_failure')))
                 report['status'] = record['status']
                 break
-            report['requests_validated'] += 1
+            report['requests_captured'] += 1
+            report['requests_validated'] += int(record['status']=='metadata_validated_not_approved')
+            report['eligibility_blocked'] += int(record['status']=='metadata_captured_eligibility_blocked')
             report['results'].append(prefix + '-metadata.json')
         else:
-            report['status'] = 'metadata_collected_not_approved'
+            report['status'] = 'metadata_capture_complete_not_eligible'
     except BaseException as exc:
         code = failure_code(exc)
         report['status'] = 'cancelled' if code == 'cancelled' else 'failed'
@@ -278,7 +285,7 @@ def main(argv=None):
             output = validate_output_path(Path(args.output) / 'worker', grant['output_policy'])
             evidence = SidecarEvidence(output, verify_created=created_verifier(grant))
             report = collect(proposal, TLSMetadataTransport(proposal, grant), evidence, grant=grant)
-            return 0 if report['status'] == 'metadata_collected_not_approved' else 1
+            return 0 if report['status'] == 'metadata_capture_complete_not_eligible' else 1
         from sidecar_supervisor import supervised
         result = supervised(args.proposal, args.output, grant,
             args.receipt, args.receipt_sha256, args.runtime_record, args.runtime_sha256,
