@@ -128,7 +128,7 @@ class Tests(unittest.TestCase):
     def test_worker_creation_rejection_precedes_production_transport_creation(self):
         with tempfile.TemporaryDirectory() as td:
             out=Path(td)/'out';out.mkdir()
-            grant={'scope':'14_pypi_discovery_gets_only','receipt_sha256':'a'*64,
+            grant={'scope':'2_pypi_discovery_gets_only','receipt_sha256':'a'*64,
                    'output_policy':{},'verify_created_acl':True}
             with patch('admission.load_grant',return_value=grant),\
                  patch.object(c,'validate_output_path',side_effect=lambda p,*a:Path(p)),\

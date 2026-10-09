@@ -19,7 +19,7 @@ def setUpModule():
 def tearDownModule():
     for guard in reversed(guards): guard.stop()
 
-def document(project='filelock',versions=('2.10','2.9')):
+def document(project='markupsafe',versions=('2.10','2.9')):
     return json.dumps({'meta':{'api-version':'1.4'},'name':project,'files':[{
         'filename':f'{project}-{v}-py3-none-any.whl','url':f'https://files.pythonhosted.org/packages/{project}-{v}-py3-none-any.whl',
         'hashes':{'sha256':'a'*64},'size':10,'requires-python':'>=3.10','yanked':False,
@@ -27,7 +27,7 @@ def document(project='filelock',versions=('2.10','2.9')):
 
 class Response:
     def __init__(self,raw=None,status=200,headers=None,final=None):
-        self.raw=document() if raw is None else raw; self.status=status; self.final_url=final or 'https://pypi.org/simple/filelock/'
+        self.raw=document() if raw is None else raw; self.status=status; self.final_url=final or 'https://pypi.org/simple/markupsafe/'
         self.headers=headers if headers is not None else [('Content-Type',c.MEDIA),('Content-Length',str(len(self.raw)))]; self.closed=False
     def read(self,n): b=self.raw[:n]; self.raw=self.raw[n:]; return b
     def close(self): self.closed=True
@@ -55,7 +55,7 @@ class Tests(unittest.TestCase):
         p=Path(self.temp.name)/'m.json'; p.write_text(json.dumps(self.m))
         with self.assertRaisesRegex(ValueError,'hash'): c.load_manifest(p)
     def test_altered_urls_and_method(self):
-        for url in ['http://pypi.org/simple/filelock/','https://pypi.org/simple/filelock/?x=1','https://evil.invalid/simple/filelock/','https://pypi.org/simple/filelock/a.whl']:
+        for url in ['http://pypi.org/simple/markupsafe/','https://pypi.org/simple/markupsafe/?x=1','https://evil.invalid/simple/markupsafe/','https://pypi.org/simple/markupsafe/a.whl']:
             self.assertFalse(c.allowed(self.m,'GET',url))
         self.assertFalse(c.allowed(self.m,'HEAD',self.m['requests'][0]['url']))
         self.m['requests'][0]['url']+='?bad=1'; r,f=self.run_fake()
@@ -85,35 +85,35 @@ class Tests(unittest.TestCase):
             with self.subTest(value=value):
                 d=json.loads(document()); d['files'][0]['upload-time']=value
                 with self.assertRaisesRegex(ValueError,'upload-time'):
-                    c.parse_index(json.dumps(d).encode(),'filelock',self.m['release_upload_cutoff_utc'])
+                    c.parse_index(json.dumps(d).encode(),'markupsafe',self.m['release_upload_cutoff_utc'])
     def test_upload_time_rejects_excess_fraction_and_malformed(self):
         for value in ['2026-01-01T00:00:00.1234567Z','2026-01-01T00:00:00.Z','2026-01-01T00:00:00.1+00:00','2026-01-01T00:00:00,1Z','2026-01-01 00:00:00Z','2026-01-01T00:00:00z','2026-01-01T00:00:00','2026-1-1T00:00:00Z','2026-02-30T00:00:00Z','2026-02-30T00:00:00.1Z','2026-01-01T24:00:00Z','2026-01-01T00:00:60Z']:
             with self.subTest(value=value):
                 d=json.loads(document()); d['files'][0]['upload-time']=value
-                with self.assertRaises(ValueError): c.parse_index(json.dumps(d).encode(),'filelock',self.m['release_upload_cutoff_utc'])
+                with self.assertRaises(ValueError): c.parse_index(json.dumps(d).encode(),'markupsafe',self.m['release_upload_cutoff_utc'])
     def test_upload_time_accepts_one_through_six_fraction_digits(self):
         for fraction in ['1','12','123','1234','12345','123456','000000']:
             with self.subTest(fraction=fraction):
                 d=json.loads(document()); d['files'][0]['upload-time']='2026-01-01T00:00:00.'+fraction+'Z'
-                self.assertEqual(c.parse_index(json.dumps(d).encode(),'filelock',self.m['release_upload_cutoff_utc'])['gaps'],[])
+                self.assertEqual(c.parse_index(json.dumps(d).encode(),'markupsafe',self.m['release_upload_cutoff_utc'])['gaps'],[])
     def test_upload_time_fraction_preserved_at_cutoff(self):
         d=json.loads(document()); d['files'][0]['upload-time']='2026-10-04T17:37:33.000001Z'
         d['files'][1]['upload-time']='2026-10-04T17:37:33.000000Z'
-        r=c.parse_index(json.dumps(d).encode(),'filelock',self.m['release_upload_cutoff_utc'])
+        r=c.parse_index(json.dumps(d).encode(),'markupsafe',self.m['release_upload_cutoff_utc'])
         self.assertEqual(len(r['gaps']),1); self.assertEqual(r['gaps'][0]['filename'],d['files'][0]['filename'])
     def test_upload_time_exact_z_and_cutoff(self):
-        d=json.loads(document()); d['files'][0]['upload-time']=self.m['release_upload_cutoff_utc']
+        d=json.loads(document()); d['files'][0]['upload-time']=self.m['release_upload_cutoff_utc'].replace('+00:00','Z')
         d['files'][1]['upload-time']='2026-10-04T17:37:34Z'
-        r=c.parse_index(json.dumps(d).encode(),'filelock',self.m['release_upload_cutoff_utc'])
+        r=c.parse_index(json.dumps(d).encode(),'markupsafe',self.m['release_upload_cutoff_utc'])
         self.assertEqual(len(r['gaps']),1); self.assertEqual(r['gaps'][0]['reasons'],['after release cutoff'])
     def test_api_v10_rejected_even_with_new_fields(self):
         d=json.loads(document()); d['meta']['api-version']='1.0'
         with self.assertRaisesRegex(ValueError,'require 1.1 through 1.4'):
-            c.parse_index(json.dumps(d).encode(),'filelock',self.m['release_upload_cutoff_utc'])
+            c.parse_index(json.dumps(d).encode(),'markupsafe',self.m['release_upload_cutoff_utc'])
     def test_supported_api_versions(self):
         for api in ['1.1','1.2','1.3','1.4']:
             d=json.loads(document()); d['meta']['api-version']=api
-            self.assertEqual(c.parse_index(json.dumps(d).encode(),'filelock',self.m['release_upload_cutoff_utc'])['wheel_records'],2)
+            self.assertEqual(c.parse_index(json.dumps(d).encode(),'markupsafe',self.m['release_upload_cutoff_utc'])['wheel_records'],2)
     def test_invalid_content_length(self):
         for value in ['1e3','-1','1,1','']:
             with self.assertRaises(ValueError): c.validate_headers(Response(headers=[('Content-Type',c.MEDIA),('Content-Length',value)]),self.m['requests'][0]['url'],self.m['bounds'])
@@ -141,9 +141,9 @@ class Tests(unittest.TestCase):
         r,_=self.run_fake(Response(raw=b'1234',headers=[('Content-Type',c.MEDIA)]))
         self.assertEqual(r['status'],'failed'); self.assertEqual((self.path/'00.body').read_bytes(),b'123')
     def test_aggregate_limit(self):
-        raw=document(); self.m['requests'].append({'project':'numpy','url':'https://pypi.org/simple/numpy/','scope':'fake'})
+        raw=document(); self.m['requests'].append({'project':'mpmath','url':'https://pypi.org/simple/mpmath/','scope':'fake'})
         self.m['bounds']['aggregate_body_bytes']=len(raw)+2
-        r=c.collect(self.m,Fake([Response(raw=raw),Response(raw=b'123',headers=[('Content-Type',c.MEDIA)],final='https://pypi.org/simple/numpy/')]),c.Evidence(self.path))
+        r=c.collect(self.m,Fake([Response(raw=raw),Response(raw=b'123',headers=[('Content-Type',c.MEDIA)],final='https://pypi.org/simple/mpmath/')]),c.Evidence(self.path))
         self.assertEqual(r['retained_body_bytes'],len(raw)+2); self.assertEqual(r['status'],'failed')
         self.assertEqual(json.loads((self.path/'00-receipt.json').read_text())['status'],'metadata_validated_not_approved')
     def test_timeout_partial(self):
@@ -161,7 +161,7 @@ class Tests(unittest.TestCase):
         d=json.loads(document())
         for key,value in [('size',True),('yanked',1),('url','https://files.pythonhosted.org/wrong.whl')]:
             altered=copy.deepcopy(d); altered['files'][0][key]=value
-            with self.assertRaises(ValueError): c.parse_index(json.dumps(altered).encode(),'filelock',self.m['release_upload_cutoff_utc'])
+            with self.assertRaises(ValueError): c.parse_index(json.dumps(altered).encode(),'markupsafe',self.m['release_upload_cutoff_utc'])
     def test_no_overwrite(self):
         c.Evidence(self.path)
         with self.assertRaises(FileExistsError): c.Evidence(self.path)

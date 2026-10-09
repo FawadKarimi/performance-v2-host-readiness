@@ -12,7 +12,7 @@ import admission,runtime_acceptance,output_security
 REPO='FawadKarimi/performance-v2-host-readiness'
 REPO_ID=1392457611
 OWNER_ID=108207574
-WORKFLOW='.github/workflows/public-metadata-candidate.yml'
+WORKFLOW='.github/workflows/two-index-discovery.yml'
 CORE=('collector.py','admission.py','runtime_acceptance.py','worker_diagnostics.py')
 BOUND=CORE+('external_review.py','output_security.py',WORKFLOW)
 FALSE_FLAGS=('protected_environment_verified','training_authorized','research_execution_authorized','artifact_acquisition_authorized','pilot_execution_authorized','security_approved')
@@ -37,7 +37,7 @@ def validate(record,context,run,hashes,runtime_hash,now,env):
     need(all(record.get(k) is True for k in TRUE_FLAGS),'external_approval_missing')
     need(all(record.get(k) is False for k in FALSE_FLAGS),'external_scope_expansion')
     need(type(record.get('home_default_acl_disposition_accepted',False)) is bool,'home_acl_disposition_invalid')
-    need(record.get('scope')=='14_pypi_discovery_gets_only','external_scope')
+    need(record.get('scope')=='2_pypi_discovery_gets_only','external_scope')
     need(record.get('owner_login')=='FawadKarimi' and record.get('owner_id')==OWNER_ID,'external_owner')
     need(all(isinstance(record.get(k),str) and record[k] for k in ('review_reference','security_review_reference','compatibility_evidence_sha256')),'external_evidence_missing')
     need(re.fullmatch('[0-9a-f]{64}',record['compatibility_evidence_sha256']) is not None,'external_compatibility_hash')

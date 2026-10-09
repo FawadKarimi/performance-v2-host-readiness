@@ -20,7 +20,7 @@ class Tests(unittest.TestCase):
         self.now=dt.datetime(2026,10,5,tzinfo=dt.timezone.utc)
         self.ctx=dict(repository='invented/private',commit='a'*40,run_id='123',attempt='1',runner='fake',boot_id='fake-boot',workflow_ref='fake-ref',event='workflow_dispatch',os='Linux',arch='X64')
         self.sources={'collector.py':'b'*64,'admission.py':'c'*64}
-        self.r=dict(schema='pv2_public_metadata_admission_v1',scope='14_pypi_discovery_gets_only',owner_authorized=True,independent_workflow_reviewed=True,zero_paid_usage_confirmed=True,same_uid_residual_risk_accepted=True,security_approved=False,pilot_execution_authorized=False,research_execution_authorized=False,artifact_acquisition_authorized=False,manifest_sha256=c.MANIFEST_SHA256,source_hashes=self.sources,context=self.ctx,issued_utc='2026-10-04T23:59:00Z',expires_utc='2026-10-05T00:30:00Z')
+        self.r=dict(schema='pv2_public_metadata_admission_v1',scope='2_pypi_discovery_gets_only',owner_authorized=True,independent_workflow_reviewed=True,zero_paid_usage_confirmed=True,same_uid_residual_risk_accepted=True,security_approved=False,pilot_execution_authorized=False,research_execution_authorized=False,artifact_acquisition_authorized=False,manifest_sha256=c.MANIFEST_SHA256,source_hashes=self.sources,context=self.ctx,issued_utc='2026-10-04T23:59:00Z',expires_utc='2026-10-05T00:30:00Z')
     def grant(self): return a.authorize(c.MANIFEST_SHA256,self.r,self.ctx,self.sources,self.now)
     def test_false_template_rejected(self):
         r=json.loads((Path(__file__).parent/'authorization-TEMPLATE.json').read_text())
@@ -77,14 +77,11 @@ class Tests(unittest.TestCase):
             with self.subTest(mode=mode),patch.object(Path,'lstat',return_value=SimpleNamespace(st_uid=123,st_mode=mode)):
                 with self.assertRaises(ValueError):a.output_policy(temp,repo,temp/'pypi-evidence-123-1',uid=123)
     def test_candidate_workflow_static_gate_and_python(self):
-        import yaml
-        text=(Path(__file__).parent/'.github/workflows/public-metadata-candidate.yml').read_text()
-        d=yaml.load(text,Loader=yaml.BaseLoader)
-        self.assertEqual(set(d['on']),{'workflow_dispatch'})
-        self.assertEqual(d['jobs']['collect']['runs-on'],'ubuntu-24.04')
-        for step in d['jobs']['collect']['steps']:
-            run=step.get('run','')
-            if "<<'PY'\n" in run: compile(run.split("<<'PY'\n",1)[1].rsplit('\nPY',1)[0],'<workflow-static>','exec')
+        text=(Path(__file__).parent/'.github/workflows/two-index-discovery.yml').read_text()
+        self.assertIn('  workflow_dispatch:',text)
+        self.assertIn('    runs-on: ubuntu-24.04',text)
+        self.assertIn('  synthetic:',text)
+        self.assertNotIn('  collect:',text)
         policy=json.loads((Path(__file__).parent/'release-decision.json').read_text())
         self.assertIs(policy['independent_workflow_reviewed'],False)
         self.assertIs(policy['public_metadata_threat_model_accepted'],False)

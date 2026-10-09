@@ -1,40 +1,50 @@
 {
-  "schema": "pv2_offline_discovery_proposal_v1",
-  "status": "proposed_not_authorized",
-  "release_upload_cutoff_utc": "2026-10-04T17:37:33Z",
-  "version_selection": "support-aware; explicit exact-version and artifact review required before lock creation",
-  "network_authorized": false,
   "acquisition_authorized": false,
+  "approved_redirects": [],
+  "artifact_bytes_verified": false,
+  "bounds": {
+    "aggregate_body_bytes": 16777216,
+    "aggregate_wall_seconds": 45,
+    "body_per_response_bytes": 8388608,
+    "concurrency": 1,
+    "headers_per_response_bytes": 65536,
+    "output_reservation_bytes": 134217728,
+    "request_wall_seconds": 20,
+    "requests": 2,
+    "retries": 0,
+    "socket_timeout_seconds": 20
+  },
+  "dependency_closure_complete": false,
   "execution_approved": false,
-  "security_approved": false,
-  "pilot_execution_authorized": false,
-  "method": "GET",
+  "follow_up_sidecar_urls": null,
+  "follow_up_status": "unresolved_until_explicit_artifact_review",
   "headers": {
     "Accept": "application/vnd.pypi.simple.v1+json",
     "Accept-Encoding": "identity"
   },
-  "approved_redirects": [],
-  "requests": [
-    {"project": "filelock", "url": "https://pypi.org/simple/filelock/", "scope": "torch_runtime"},
-    {"project": "typing-extensions", "url": "https://pypi.org/simple/typing-extensions/", "scope": "torch_runtime"},
-    {"project": "setuptools", "url": "https://pypi.org/simple/setuptools/", "scope": "torch_runtime_and_build"},
-    {"project": "sympy", "url": "https://pypi.org/simple/sympy/", "scope": "torch_runtime"},
-    {"project": "networkx", "url": "https://pypi.org/simple/networkx/", "scope": "torch_runtime"},
-    {"project": "jinja2", "url": "https://pypi.org/simple/jinja2/", "scope": "torch_runtime"},
-    {"project": "fsspec", "url": "https://pypi.org/simple/fsspec/", "scope": "torch_runtime"},
-    {"project": "numpy", "url": "https://pypi.org/simple/numpy/", "scope": "base_and_probe_runtime"},
-    {"project": "pillow", "url": "https://pypi.org/simple/pillow/", "scope": "torchvision_runtime"},
-    {"project": "pyyaml", "url": "https://pypi.org/simple/pyyaml/", "scope": "base_runtime"},
-    {"project": "pandas", "url": "https://pypi.org/simple/pandas/", "scope": "base_runtime"},
-    {"project": "opencv-python", "url": "https://pypi.org/simple/opencv-python/", "scope": "input_auditor"},
-    {"project": "pytest", "url": "https://pypi.org/simple/pytest/", "scope": "tests_only"},
-    {"project": "wheel", "url": "https://pypi.org/simple/wheel/", "scope": "build_only"}
-  ],
-  "bounds": {"requests": 14, "concurrency": 1, "socket_timeout_seconds": 10, "aggregate_wall_seconds": 120, "body_per_response_bytes": 8388608, "aggregate_body_bytes": 67108864, "headers_per_response_bytes": 65536, "output_reservation_bytes": 134217728, "retries": 0},
-  "follow_up_sidecar_urls": null,
-  "follow_up_status": "unresolved_until_explicit_artifact_review",
-  "selected_versions": null,
+  "method": "GET",
+  "network_authorized": false,
   "package_security": "unresolved",
-  "artifact_bytes_verified": false,
-  "dependency_closure_complete": false
+  "pilot_execution_authorized": false,
+  "release_upload_cutoff_utc": "2026-10-04T17:37:33+00:00",
+  "requests": [
+    {
+      "project": "markupsafe",
+      "required_constraint": ">=2.0",
+      "scope": "runtime_no_extras",
+      "url": "https://pypi.org/simple/markupsafe/"
+    },
+    {
+      "project": "mpmath",
+      "required_constraint": ">=1.1.0,<1.4",
+      "scope": "runtime_no_extras",
+      "url": "https://pypi.org/simple/mpmath/"
+    }
+  ],
+  "schema": "pv2_offline_discovery_proposal_v1",
+  "security_approved": false,
+  "selected_versions": null,
+  "status": "proposed_not_authorized",
+  "upstream_proposal_sha256": "61ff6089d427bac8e3d25f94411c1770c3931c7e586f78e1586c87a54d9f7071",
+  "version_selection": "support-aware; explicit exact-version and artifact review required before lock creation"
 }

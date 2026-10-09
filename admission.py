@@ -13,7 +13,7 @@ def authorize(manifest, receipt, context, source_hashes, now):
     need(receipt.get('schema')=='pv2_public_metadata_admission_v1','authorization schema')
     need(receipt.get('owner_authorized') is True and receipt.get('independent_workflow_reviewed') is True,'explicit owner/review approval missing')
     need(receipt.get('zero_paid_usage_confirmed') is True,'fresh billing confirmation missing')
-    need(receipt.get('scope')=='14_pypi_discovery_gets_only','scope mismatch')
+    need(receipt.get('scope')=='2_pypi_discovery_gets_only','scope mismatch')
     need(receipt.get('manifest_sha256')==manifest,'manifest binding mismatch')
     need(receipt.get('source_hashes')==source_hashes and source_hashes,'implementation binding mismatch')
     need(receipt.get('context')==context,'run/attempt/commit/runner identity mismatch')

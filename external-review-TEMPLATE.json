@@ -1,7 +1,7 @@
 {
   "schema": "external_metadata_review_v1",
   "approval_mechanism": "externally_reviewed_record",
-  "scope": "14_pypi_discovery_gets_only",
+  "scope": "2_pypi_discovery_gets_only",
   "owner_accepted": false,
   "independent_review_accepted": false,
   "metadata_scope_security_disposition_accepted": false,

@@ -138,3 +138,4 @@ class Tests(unittest.TestCase):
         self.assertEqual(code,2);self.assertTrue((out/'started.json').exists());self.assertTrue((out/'failed.json').exists())
 
 if __name__=='__main__':unittest.main()
+

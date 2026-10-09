@@ -1,6 +1,6 @@
 {
   "schema": "pv2_public_metadata_admission_v1",
-  "scope": "14_pypi_discovery_gets_only",
+  "scope": "2_pypi_discovery_gets_only",
   "owner_authorized": false,
   "independent_workflow_reviewed": false,
   "zero_paid_usage_confirmed": false,
@@ -9,7 +9,7 @@
   "pilot_execution_authorized": false,
   "research_execution_authorized": false,
   "artifact_acquisition_authorized": false,
-  "manifest_sha256": "587b0eb7e124783ec6a62d7f316fdd263f40cf3b9130b64eaf6f8855395dd551",
+  "manifest_sha256": "87f57460137c3c51c9daddfc0085d893a587a6e770dce6e5e17f1739115b1489",
   "source_hashes": null,
   "runtime_acceptance_sha256": null,
   "context": null,

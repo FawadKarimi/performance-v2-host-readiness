@@ -1,0 +1,67 @@
+{
+  "artifact_downloads": false,
+  "automatic_recursion": false,
+  "binary_fallback": false,
+  "execution_authorized": false,
+  "head_requests": 0,
+  "max_gets": 2,
+  "max_total_response_bytes": 16777216,
+  "post_collection": "Review non-yanked cutoff-compatible candidates against constraints, Python/native tags, maintenance/security; then separately propose exact hash-bound sidecars. Unknown upload time or absent metadata digest remains blocked.",
+  "proposal_not_a_lock": true,
+  "redirects": 0,
+  "remaining_adapter_review": "Use separately reviewed index-discovery transport, not the nine-only sidecar collector. Confirm limits/runtime/admission and fresh authorization before any execution.",
+  "requests": [
+    {
+      "deadline_seconds": 20,
+      "expected_response_sha256": null,
+      "headers": {
+        "Accept": "application/vnd.pypi.simple.v1+json",
+        "Accept-Encoding": "identity"
+      },
+      "id": "discovery-markupsafe",
+      "max_response_bytes": 8388608,
+      "method": "GET",
+      "project": "markupsafe",
+      "required_constraint": ">=2.0",
+      "response_hash_policy": "Discovery response unknown before collection; record SHA-256 before parsing. This is not a hash-pinned sidecar request.",
+      "url": "https://pypi.org/simple/markupsafe/",
+      "version": null
+    },
+    {
+      "deadline_seconds": 20,
+      "expected_response_sha256": null,
+      "headers": {
+        "Accept": "application/vnd.pypi.simple.v1+json",
+        "Accept-Encoding": "identity"
+      },
+      "id": "discovery-mpmath",
+      "max_response_bytes": 8388608,
+      "method": "GET",
+      "project": "mpmath",
+      "required_constraint": ">=1.1.0,<1.4",
+      "response_hash_policy": "Discovery response unknown before collection; record SHA-256 before parsing. This is not a hash-pinned sidecar request.",
+      "url": "https://pypi.org/simple/mpmath/",
+      "version": null
+    }
+  ],
+  "retries": 0,
+  "schema": "bounded_dependency_frontier_discovery_proposal_v1",
+  "scope": "Only discover exact candidate artifacts and advertised PEP 658 metadata hashes for two proven runtime children. No following returned URLs.",
+  "status": "review_only_inactive_not_collector_ready",
+  "target": {
+    "extra": "",
+    "implementation_name": "cpython",
+    "implementation_version": "3.12.15",
+    "os_name": "posix",
+    "platform_machine": "x86_64",
+    "platform_python_implementation": "CPython",
+    "platform_release": "",
+    "platform_system": "Linux",
+    "platform_version": "",
+    "python_full_version": "3.12.15",
+    "python_version": "3.12",
+    "sys_platform": "linux"
+  },
+  "total_deadline_seconds": 45,
+  "upload_cutoff_utc": "2026-10-04T17:37:33+00:00"
+}

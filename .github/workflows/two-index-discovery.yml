@@ -1,0 +1,159 @@
+name: Two-index offline native delta (inactive approval candidate)
+on:
+  workflow_dispatch:
+    inputs:
+      authorize_synthetic_only:
+        type: boolean
+        required: true
+        default: false
+      fresh_zero_paid_usage:
+        type: boolean
+        required: true
+        default: false
+      reviewed_commit:
+        type: string
+        required: true
+        default: ''
+      reviewed_collection_lock_sha256:
+        type: string
+        required: true
+        default: ''
+      reviewed_delta_lock_sha256:
+        type: string
+        required: true
+        default: ''
+permissions:
+  contents: read
+concurrency:
+  group: two-index-offline-native-delta
+  cancel-in-progress: false
+jobs:
+  synthetic:
+    if: ${{ github.repository == 'FawadKarimi/performance-v2-host-readiness' && github.event.repository.private == true && github.actor_id == '108207574' && github.triggering_actor == 'FawadKarimi' && github.ref == 'refs/heads/main' && github.run_attempt == 1 && inputs.authorize_synthetic_only && inputs.fresh_zero_paid_usage && inputs.reviewed_commit == github.sha && inputs.reviewed_collection_lock_sha256 == 'aa36c192482ef8b2117ecada44c3bfdc7af6802776239e4709a3331b38509c66' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      CUDA_VISIBLE_DEVICES: ''
+      REVIEWED_DELTA_LOCK_SHA256: ${{ inputs.reviewed_delta_lock_sha256 }}
+    steps:
+      - name: Exclusive launch evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          launch="$RUNNER_TEMP/two-index-delta-launch-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          mkdir -m 700 "$launch"
+          printf '{"status":"started","run_id":"%s","attempt":"%s","commit":"%s","collection_authorized":false}\n' "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$GITHUB_SHA" > "$launch/started.json"
+          printf '%s\n' "$REVIEWED_DELTA_LOCK_SHA256" > "$launch/expected-delta-lock.txt"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Verify both locks then isolated synthetic-only delta
+        shell: bash
+        timeout-minutes: 3
+        run: |
+          set -euo pipefail
+          umask 077
+          launch="$RUNNER_TEMP/two-index-delta-launch-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          finish() {
+            code=$?
+            trap - EXIT
+            printf '%s\n' "$code" > "$launch/launch-exit-status.txt" || exit 2
+            exit "$code"
+          }
+          trap finish EXIT
+          # Stdlib gate before importing any candidate module; no historical lock substitution.
+          /usr/bin/python3.12 -I -B - <<'PY' > "$launch/preflight.json" 2> "$launch/preflight-stderr.log"
+          import hashlib,json,os,pathlib,re,stat
+          def read(name):
+              p=pathlib.Path(name)
+              assert p.is_file() and not any(x.is_symlink() for x in (p,*p.parents))
+              s=p.stat();assert stat.S_ISREG(s.st_mode) and s.st_nlink==1 and s.st_size<=1048576
+              return p.read_bytes()
+          def pairs(items):
+              result={}
+              for k,v in items:
+                  assert k not in result
+                  result[k]=v
+              return result
+          sha=lambda b:hashlib.sha256(b).hexdigest()
+          expected=os.environ['REVIEWED_DELTA_LOCK_SHA256'];assert re.fullmatch('[0-9a-f]{64}',expected)
+          raw=read('native-delta-lock.json');assert sha(raw)==expected
+          overlay=json.loads(raw,object_pairs_hook=pairs)
+          assert overlay['schema']=='two_index_native_delta_lock_v1' and overlay['execution_authorized'] is False
+          collection=read('source-lock.json')
+          digest='aa36c192482ef8b2117ecada44c3bfdc7af6802776239e4709a3331b38509c66'
+          assert sha(collection)==overlay['collection_source_lock_sha256']==digest
+          lock=json.loads(collection,object_pairs_hook=pairs)
+          assert lock['collection_authorized'] is False and lock['expected_offline_tests']==165 and len(lock['files'])==25
+          assert set(overlay['files'])=={'.github/workflows/two-index-discovery.yml','compatibility/two_index_delta.py','compatibility/test_two_index_delta.py'}
+          for name,digest in {**lock['files'],**overlay['files']}.items():
+              assert re.fullmatch(r'[A-Za-z0-9_./-]+',name) and not name.startswith('/') and '..' not in name.split('/')
+              assert sha(read(name))==digest,name
+          print(json.dumps({'delta_lock_sha256':expected,'collection_source_lock_sha256':sha(collection),'source_bindings':28,'collection_authorized':False}))
+          PY
+          parent_net="$(readlink /proc/self/ns/net)"
+          runner_uid="$(id -u)"
+          runner_user="$(id -un)"
+          [[ "$runner_uid" != 0 ]]
+          printf '%s\n' "$parent_net" > "$launch/parent-network-namespace.txt"
+          ulimit -f 2048
+          ulimit -c 0
+          sudo -n /usr/bin/timeout --signal=TERM --kill-after=5s 120s /usr/bin/unshare --net /usr/sbin/runuser --user "$runner_user" -- /usr/bin/setpriv --no-new-privs /usr/bin/env -i PATH=/usr/bin:/bin HOME="$RUNNER_TEMP" RUNNER_TEMP="$RUNNER_TEMP" PYTHONDONTWRITEBYTECODE=1 CUDA_VISIBLE_DEVICES= GITHUB_REPOSITORY="$GITHUB_REPOSITORY" GITHUB_SHA="$GITHUB_SHA" GITHUB_RUN_ID="$GITHUB_RUN_ID" GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" GITHUB_RUN_NUMBER="$GITHUB_RUN_NUMBER" GITHUB_WORKFLOW_REF="$GITHUB_WORKFLOW_REF" GITHUB_ACTOR_ID="$GITHUB_ACTOR_ID" GITHUB_TRIGGERING_ACTOR="$GITHUB_TRIGGERING_ACTOR" RUNNER_NAME="$RUNNER_NAME" /usr/bin/python3.12 -I -B compatibility/two_index_delta.py --delta-lock-sha256 "$REVIEWED_DELTA_LOCK_SHA256" --parent-net "$parent_net" --uid "$runner_uid" --output "$RUNNER_TEMP/two-index-delta-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" > "$launch/stdout.log" 2> "$launch/stderr.log"
+      - name: Independent final evidence verification and ledger
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          /usr/bin/python3.12 -I -B - <<'PY'
+          import hashlib,json,os,pathlib,stat
+          temp=pathlib.Path(os.environ['RUNNER_TEMP']); suffix=os.environ['GITHUB_RUN_ID']+'-'+os.environ['GITHUB_RUN_ATTEMPT']
+          launch=temp/('two-index-delta-launch-'+suffix); output=temp/('two-index-delta-'+suffix)
+          entries={}; errors=[]; records={}
+          for folder in (launch,output):
+              try:
+                  s=folder.lstat();assert stat.S_ISDIR(s.st_mode) and s.st_uid==os.getuid() and stat.S_IMODE(s.st_mode)==0o700
+                  children=list(folder.iterdir());assert len(children)<=32
+              except Exception:
+                  errors.append('missing_or_invalid_'+folder.name);continue
+              for p in sorted(children):
+                  try:
+                      s=p.lstat();assert stat.S_ISREG(s.st_mode) and s.st_nlink==1 and s.st_size<=2097152
+                      b=p.read_bytes();key=folder.name+'/'+p.name
+                      entries[key]={'bytes':len(b),'sha256':hashlib.sha256(b).hexdigest()}; records[(folder.name,p.name)]=b
+                  except Exception:errors.append('unreadable_'+p.name)
+          try:
+              assert records[(launch.name,'launch-exit-status.txt')].strip()==b'0'
+              required={'started.json','source-before.json','source-after.json','run-context.json','network-isolation.json','private-paths.json','runtime-observed.json','test-result-stdout.json','tests.log','test-exit-status.json','test-results.json','exit-status.json','finished.json','evidence-ledger.json'}
+              assert all((output.name,n) in records for n in required)
+              obj=lambda n:json.loads(records[(output.name,n)])
+              assert obj('source-before.json')==obj('source-after.json')
+              assert obj('finished.json')['status']=='synthetic_delta_passed_not_accepted'
+              assert obj('exit-status.json')['exit_code']==obj('test-exit-status.json')['exit_code']==0
+              result=obj('test-results.json');assert result['tests']==165 and result['failures']==result['errors']==result['skipped']==0
+              assert result['successful'] is True and result['execution_authorized'] is False
+              for n,v in obj('evidence-ledger.json')['files'].items():
+                  assert entries[output.name+'/'+n]==v
+          except Exception:errors.append('required_success_evidence_incomplete_or_failed')
+          report={'status':'complete_synthetic_evidence_not_acceptance' if not errors else 'failed','errors':errors,'files':entries,'excludes_itself':True,'collection_authorized':False,'production_authorized':False}
+          # Exclusive write; any finalizer failure also fails the job. Upload still runs.
+          with (launch/'outer-evidence-ledger.json').open('x') as stream:
+              json.dump(report,stream,indent=2,sort_keys=True);stream.write('\n')
+          print(json.dumps({'status':report['status'],'errors':errors}))
+          raise SystemExit(0 if not errors else 2)
+          PY
+      - name: Retain partial and complete delta evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: two-index-native-delta-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/two-index-delta-launch-${{ github.run_id }}-${{ github.run_attempt }}/
+            ${{ runner.temp }}/two-index-delta-${{ github.run_id }}-${{ github.run_attempt }}/
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: false

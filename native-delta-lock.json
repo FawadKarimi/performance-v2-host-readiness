@@ -1,11 +1,11 @@
 {
   "collection_authorized": false,
-  "collection_source_lock_sha256": "68343ecbb90c474d0eaf8f5bd4d9c05e720f2ff32b5cd05a67bac016b31c4e2f",
+  "collection_source_lock_sha256": "aa36c192482ef8b2117ecada44c3bfdc7af6802776239e4709a3331b38509c66",
   "execution_authorized": false,
   "files": {
-    ".github/workflows/sidecar-native-delta.yml": "21073dd7fc1a77f2d143a75c1b7bbf17a1b549130121e787b9d617348296678f",
-    "compatibility/nine_delta.py": "c153ccbbddd9460c04ac57cd5646429fdd2112fb6e16c3c9dd62b29e1a28c0ef",
-    "compatibility/test_nine_delta.py": "f55a52bc8d5f026ef39a586f7d74eae5981fd88451029f62ecaf7d1152dcba63"
+    ".github/workflows/two-index-discovery.yml": "80311a070639302736f0a8bf060fcc547f014fc03dd6d6819bffebe7bcdfcf00",
+    "compatibility/test_two_index_delta.py": "38fb6901bbb43aee036a90359d408126a1320061d507436f534c76243a9b8437",
+    "compatibility/two_index_delta.py": "359be1a3723b2a63279d50d1b68c7cef999a5d5f40166f14241c5d75e27c6a9f"
   },
-  "schema": "nine_sidecar_native_delta_lock_v1"
+  "schema": "two_index_native_delta_lock_v1"
 }

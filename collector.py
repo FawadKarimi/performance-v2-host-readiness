@@ -19,8 +19,8 @@ import sys
 import time
 from urllib.parse import urlsplit, unquote
 
-MANIFEST_SHA256 = '587b0eb7e124783ec6a62d7f316fdd263f40cf3b9130b64eaf6f8855395dd551'
-PROJECTS = ('filelock','typing-extensions','setuptools','sympy','networkx','jinja2','fsspec','numpy','pillow','pyyaml','pandas','opencv-python','pytest','wheel')
+MANIFEST_SHA256 = '87f57460137c3c51c9daddfc0085d893a587a6e770dce6e5e17f1739115b1489'
+PROJECTS = ('markupsafe','mpmath')
 FLAGS = ('network_authorized','acquisition_authorized','execution_approved','security_approved','pilot_execution_authorized')
 MEDIA = 'application/vnd.pypi.simple.v1+json'
 # No live root or repository boundary has been approved. Not CLI-configurable.
@@ -84,18 +84,20 @@ def load_manifest(path):
 def authorize_network(m,grant=None):
     # Historical request flags stay false. A separately hash-bound, run-scoped
     # grant is produced by admission.load_grant after all receipt/path checks.
-    require(grant is not None and grant.get('scope')=='14_pypi_discovery_gets_only' and grant.get('receipt_sha256'), 'network access disabled: no reviewed authorization')
+    require(grant is not None and grant.get('scope')=='2_pypi_discovery_gets_only' and grant.get('receipt_sha256'), 'network access disabled: no reviewed authorization')
     require(all(m[k] is False for k in FLAGS),'historical manifest flags changed')
 
 class Budget:
     def __init__(self, bounds, clock=time.monotonic):
-        self.clock=clock; self.bounds=bounds; self.end=clock()+bounds['aggregate_wall_seconds']; self.total=0; self.calls=0
+        self.clock=clock; self.bounds=bounds; self.end=clock()+bounds['aggregate_wall_seconds']; self.total=0; self.calls=0; self.request_end=None
     def remaining(self):
-        left=self.end-self.clock()
+        now=self.clock(); left=self.end-now
+        if self.request_end is not None: left=min(left,self.request_end-now)
         if left<=0: raise TimeoutError('aggregate deadline exceeded')
         return min(self.bounds['socket_timeout_seconds'],left)
     def start(self):
-        self.remaining(); self.calls+=1
+        self.request_end=None; self.remaining(); self.calls+=1
+        self.request_end=self.clock()+self.bounds['request_wall_seconds']
         require(self.calls<=self.bounds['requests'],'request count exceeded')
     def account(self,n):
         self.total+=n
@@ -284,6 +286,8 @@ def collect(m,transport,evidence,clock=time.monotonic,grant=None):
                     if not chunk: break
                 os.fsync(f.fileno())
             require(expected is None or len(body)==expected,'Content-Length mismatch')
+            evidence.write(prefix+'-body-captured.json',{'response_sha256':sha(body),'bytes':len(body),'hash_scope':'complete captured body before parsing','url':url})
+            budget.remaining()
             result=parse_index(bytes(body),request['project'],m['release_upload_cutoff_utc'])
             budget.remaining(); evidence.write(prefix+'-index.json',result); budget.remaining()
             record['status']='metadata_validated_not_approved'
