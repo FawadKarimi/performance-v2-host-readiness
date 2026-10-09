@@ -104,6 +104,29 @@ class CollectorTests(unittest.TestCase):
         self.assertEqual(proof['requests_validated'], 9)
         self.assertEqual(proof['retained_body_bytes'], report['retained_body_bytes'])
 
+
+    def test_binary_mime_wrong_hash_rejects_before_parse(self):
+        self.replace_body(b'untrusted metadata')
+        self.responses[0].headers.append(('Content-Type', 'binary/octet-stream'))
+        with patch.object(sc, 'parse_metadata') as parse:
+            report = self.run_collect()
+        parse.assert_not_called()
+        self.assertEqual(report['failures'][0]['code'], 'digest_mismatch')
+        self.assertEqual(report['requests_validated'], 0)
+        self.assertEqual(len(self.transport.calls), 1)
+        self.assertFalse(self.record('00-receipt.json')['digest_verified_before_parse'])
+        self.assertFalse((self.evidence.path/'00-metadata.json').exists())
+
+    def test_binary_mime_hash_matched_invalid_metadata_rejected(self):
+        self.replace_body(b'not metadata\n\xff', rehash=True)
+        self.responses[0].headers.append(('Content-Type', 'binary/octet-stream'))
+        report = self.run_collect()
+        self.assertEqual(report['status'], 'failed')
+        self.assertEqual(report['requests_validated'], 0)
+        self.assertEqual(len(self.transport.calls), 1)
+        self.assertTrue(self.record('00-receipt.json')['digest_verified_before_parse'])
+        self.assertFalse((self.evidence.path/'00-metadata.json').exists())
+
     def test_digest_mismatch_never_parses_and_stops(self):
         self.replace_body(b'untrusted metadata')
         with patch.object(sc, 'parse_metadata') as parse:

@@ -29,7 +29,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   synthetic:
-    if: ${{ github.repository == 'FawadKarimi/performance-v2-host-readiness' && github.event.repository.private == true && github.actor_id == '108207574' && github.triggering_actor == 'FawadKarimi' && github.ref == 'refs/heads/main' && github.run_attempt == 1 && inputs.authorize_synthetic_only && inputs.fresh_zero_paid_usage && inputs.reviewed_commit == github.sha && inputs.reviewed_collection_lock_sha256 == '08de8faff21f58601298faf9d382df9824887b46044a1ce05568ad81acba153f' }}
+    if: ${{ github.repository == 'FawadKarimi/performance-v2-host-readiness' && github.event.repository.private == true && github.actor_id == '108207574' && github.triggering_actor == 'FawadKarimi' && github.ref == 'refs/heads/main' && github.run_attempt == 1 && inputs.authorize_synthetic_only && inputs.fresh_zero_paid_usage && inputs.reviewed_commit == github.sha && inputs.reviewed_collection_lock_sha256 == '68343ecbb90c474d0eaf8f5bd4d9c05e720f2ff32b5cd05a67bac016b31c4e2f' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 6
     env:
@@ -85,10 +85,10 @@ jobs:
           overlay=json.loads(raw,object_pairs_hook=pairs)
           assert overlay['schema']=='nine_sidecar_native_delta_lock_v1' and overlay['execution_authorized'] is False
           collection=read('collection-source-lock.json')
-          digest='08de8faff21f58601298faf9d382df9824887b46044a1ce05568ad81acba153f'
+          digest='68343ecbb90c474d0eaf8f5bd4d9c05e720f2ff32b5cd05a67bac016b31c4e2f'
           assert sha(collection)==overlay['collection_source_lock_sha256']==digest
           lock=json.loads(collection,object_pairs_hook=pairs)
-          assert lock['collection_authorized'] is False and lock['expected_offline_tests']==178 and len(lock['files'])==43
+          assert lock['collection_authorized'] is False and lock['expected_offline_tests']==182 and len(lock['files'])==43
           assert set(overlay['files'])=={'.github/workflows/sidecar-native-delta.yml','compatibility/nine_delta.py','compatibility/test_nine_delta.py'}
           for name,digest in {**lock['files'],**overlay['files']}.items():
               assert re.fullmatch(r'[A-Za-z0-9_./-]+',name) and not name.startswith('/') and '..' not in name.split('/')
@@ -134,7 +134,7 @@ jobs:
               assert obj('source-before.json')==obj('source-after.json')
               assert obj('finished.json')['status']=='synthetic_delta_passed_not_accepted'
               assert obj('exit-status.json')['exit_code']==obj('test-exit-status.json')['exit_code']==0
-              result=obj('test-results.json');assert result['tests']==178 and result['failures']==result['errors']==result['skipped']==0
+              result=obj('test-results.json');assert result['tests']==182 and result['failures']==result['errors']==result['skipped']==0
               assert result['successful'] is True and result['execution_authorized'] is False
               for n,v in obj('evidence-ledger.json')['files'].items():
                   assert entries[output.name+'/'+n]==v

@@ -1,4 +1,4 @@
-"""Local mocked adapter regressions, separate from the frozen 178-test suite."""
+"""Local mocked adapter regressions, separate from the frozen 182-test suite."""
 import copy
 import json
 from pathlib import Path
@@ -11,7 +11,7 @@ import nine_delta as d
 
 
 def result():
-    return dict(tests=178,failures=0,errors=0,skipped=0,successful=True,
+    return dict(tests=182,failures=0,errors=0,skipped=0,successful=True,
                 network_and_subprocess_audit_deny=True,execution_authorized=False,
                 source_lock_sha256=d.COLLECTION_SHA)
 

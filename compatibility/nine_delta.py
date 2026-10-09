@@ -14,7 +14,7 @@ import native_linux as n
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = '.github/workflows/sidecar-native-delta.yml'
-COLLECTION_SHA = '08de8faff21f58601298faf9d382df9824887b46044a1ce05568ad81acba153f'
+COLLECTION_SHA = '68343ecbb90c474d0eaf8f5bd4d9c05e720f2ff32b5cd05a67bac016b31c4e2f'
 PROPOSAL_SHA = '3d24522de536bb1d64617b9efc5a7ddac1a414b199a65a59ad37c5146ed69283'
 OVERLAY_FILES = {WORKFLOW, 'compatibility/nine_delta.py', 'compatibility/test_nine_delta.py'}
 
@@ -33,7 +33,7 @@ def verify_sources(root, expected):
     collection=n.strict_json(collection_raw)
     n.need(collection.get('schema')=='sidecar_collection_source_lock_v1' and
            collection.get('collection_authorized') is False and
-           collection.get('expected_offline_tests')==178 and
+           collection.get('expected_offline_tests')==182 and
            len(collection.get('files',{}))==43,'collection_lock_scope')
     files={**collection['files'],**overlay['files']}
     n.need(len(files)==46,'delta_overlap')
@@ -107,7 +107,7 @@ def private_paths(root, output):
 
 
 def validate_result(result):
-    n.need(type(result) is dict and type(result.get('tests')) is int and result['tests']==178 and
+    n.need(type(result) is dict and type(result.get('tests')) is int and result['tests']==182 and
            all(type(result.get(k)) is int and result[k]==0 for k in ('failures','errors','skipped')) and
            result.get('successful') is True and result.get('network_and_subprocess_audit_deny') is True and
            result.get('execution_authorized') is False and

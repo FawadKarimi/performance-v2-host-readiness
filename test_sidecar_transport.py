@@ -333,6 +333,27 @@ class ResponseTests(OfflineCase):
                 st.validate_headers(self.response(status=status), st.URLS[0], self.p)
         self.dns_mock.assert_not_called()
 
+
+    def test_exact_binary_octet_stream_and_existing_charset_policy(self):
+        for value in ('binary/octet-stream', 'BINARY/OCTET-STREAM',
+                      'binary/octet-stream; charset=utf-8',
+                      'binary/octet-stream; charset=us-ascii'):
+            with self.subTest(value=value):
+                self.assertEqual(st.validate_headers(self.response([
+                    ('Content-Type', value), ('Content-Length', '2028')]),
+                    st.URLS[0], self.p), 2028)
+
+    def test_binary_mime_does_not_expand_type_or_parameter_policy(self):
+        for value in ('binary/*', 'binary/zip', 'binary/octet-streamx',
+                      'binary/octet-stream; charset=latin-1',
+                      'binary/octet-stream; charset="utf-8"',
+                      'binary/octet-stream; charset=utf-8; charset=utf-8',
+                      'binary/octet-stream; name=file',
+                      'binary/octet-stream, text/plain'):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                st.validate_headers(self.response([('Content-Type', value)]),
+                                    st.URLS[0], self.p)
+
     def test_final_url_must_match_exact_literal(self):
         with self.assertRaisesRegex(ValueError, 'final URL'):
             st.validate_headers(self.response(url=st.URLS[1]), st.URLS[0], self.p)

@@ -252,7 +252,8 @@ class TLSMetadataTransport:
 def validate_headers(response, url, proposal):
     """Conservative compatibility: no chunking, duplicate headers or redirects.
 
-    Content-Type may be absent, text/plain or application/octet-stream with an
+    Content-Type may be absent, text/plain, application/octet-stream or
+    binary/octet-stream with an
     optional utf-8/us-ascii charset.  The pinned body SHA, checked before parsing,
     remains authoritative.  Unexpected MIME/framing is a failure, never fallback.
     """
@@ -273,7 +274,7 @@ def validate_headers(response, url, proposal):
         headers[key] = value.strip()
     content_type = headers.get('content-type')
     if content_type is not None:
-        require(re.fullmatch(r'(?:text/plain|application/octet-stream)(?:\s*;\s*charset=(?:utf-8|us-ascii))?',
+        require(re.fullmatch(r'(?:text/plain|application/octet-stream|binary/octet-stream)(?:\s*;\s*charset=(?:utf-8|us-ascii))?',
                              content_type, re.I) is not None,
                 'unsupported metadata content type')
     require(headers.get('content-encoding', 'identity').lower() == 'identity',

@@ -101,7 +101,7 @@
     "sidecar_contract.py": "fae01ded92a6923cb8b12c6501f789e9c78c0605ce6920828539e49bccc90945",
     "sidecar_metadata.py": "1b638343ab4675e05df2a3f186e3e759ec9032340a156fba5213c9990421a66b",
     "sidecar_supervisor.py": "6c611bcdd3e36da680b276f6eb5d87fdd5d8b55248cbca8970f13e9e2976d830",
-    "sidecar_transport.py": "07db4192a8d8d147253d4340de9fca387ed6b62e9bde29b388b6f254b0b10f6d",
+    "sidecar_transport.py": "09687c6f375be75e65d1a331dbb5e1c23783750b536b22019d05867a75c5d3fb",
     "worker_diagnostics.py": "f727b5d6a782bf313fe1ba00ca326d08769a384b87ef1cf1c14eb61ef6706427"
   },
   "training_authorized": false,
@@ -136,7 +136,7 @@
       "sidecar_contract.py": "fae01ded92a6923cb8b12c6501f789e9c78c0605ce6920828539e49bccc90945",
       "sidecar_metadata.py": "1b638343ab4675e05df2a3f186e3e759ec9032340a156fba5213c9990421a66b",
       "sidecar_supervisor.py": "6c611bcdd3e36da680b276f6eb5d87fdd5d8b55248cbca8970f13e9e2976d830",
-      "sidecar_transport.py": "07db4192a8d8d147253d4340de9fca387ed6b62e9bde29b388b6f254b0b10f6d",
+      "sidecar_transport.py": "09687c6f375be75e65d1a331dbb5e1c23783750b536b22019d05867a75c5d3fb",
       "worker_diagnostics.py": "f727b5d6a782bf313fe1ba00ca326d08769a384b87ef1cf1c14eb61ef6706427"
     },
     "training_authorized": false
