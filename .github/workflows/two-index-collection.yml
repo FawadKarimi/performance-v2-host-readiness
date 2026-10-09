@@ -65,7 +65,7 @@ jobs:
           set -euo pipefail
           umask 077
           launch="$RUNNER_TEMP/two-index-collection-launch-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          /usr/bin/python3.12 -I -B - <<'PY' > "$launch/source-before.json" 2> "$launch/preflight-stderr.log"
+          if /usr/bin/python3.12 -I -B - <<'PY' > "$launch/source-before.json" 2> "$launch/preflight-stderr.log"
           import hashlib,json,os,pathlib,stat,sys
           root=pathlib.Path.cwd()
           raw=(root/'two-index-collection-lock.json').read_bytes()
@@ -82,6 +82,13 @@ jobs:
           import two_index_collection as integration
           print(json.dumps(integration.preflight(root,os.environ)))
           PY
+          then code=0; else code=$?; fi
+          evidence_code=0
+          if printf '%s\n' "$code" > "$launch/preflight-exit.txt"; then :; else evidence_code=74; fi
+          if printf '{"stage":"preflight","exit_code":%s}\n' "$code" > "$launch/preflight-status.json"; then :; else evidence_code=74; fi
+          if printf 'preflight original_exit=%s evidence_exit=%s\n' "$code" "$evidence_code"; then :; else evidence_code=74; fi
+          if [ "$code" -ne 0 ]; then exit "$code"; fi
+          exit "$evidence_code"
       - name: One bounded GitHub identity GET and existing parent-worker admission
         shell: bash
         env:
@@ -90,10 +97,13 @@ jobs:
           set -uo pipefail
           umask 077
           launch="$RUNNER_TEMP/two-index-collection-launch-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          timeout --signal=TERM --kill-after=5s 45s /usr/bin/python3.12 -I -B two_index_collection.py admit > "$launch/admission-stdout.log" 2> "$launch/admission-stderr.log"
-          code=$?
-          printf '%s\n' "$code" > "$launch/admission-exit.txt"
-          exit "$code"
+          if timeout --signal=TERM --kill-after=5s 45s /usr/bin/python3.12 -I -B two_index_collection.py admit > "$launch/admission-stdout.log" 2> "$launch/admission-stderr.log"; then code=0; else code=$?; fi
+          evidence_code=0
+          if printf '%s\n' "$code" > "$launch/admission-exit.txt"; then :; else evidence_code=74; fi
+          if printf '{"stage":"admission","exit_code":%s}\n' "$code" > "$launch/admission-status.json"; then :; else evidence_code=74; fi
+          if printf 'admission original_exit=%s evidence_exit=%s\n' "$code" "$evidence_code"; then :; else evidence_code=74; fi
+          if [ "$code" -ne 0 ]; then exit "$code"; fi
+          exit "$evidence_code"
       - name: Exactly two reviewed PyPI index GETs
         shell: bash
         run: |
@@ -115,10 +125,13 @@ jobs:
           set -uo pipefail
           umask 077
           launch="$RUNNER_TEMP/two-index-collection-launch-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          /usr/bin/python3.12 -I -B two_index_collection.py finalize > "$launch/finalization-stdout.log" 2> "$launch/finalization-stderr.log"
-          code=$?
-          printf '%s\n' "$code" > "$launch/finalization-exit.txt"
-          exit "$code"
+          if /usr/bin/python3.12 -I -B two_index_collection.py finalize > "$launch/finalization-stdout.log" 2> "$launch/finalization-stderr.log"; then code=0; else code=$?; fi
+          evidence_code=0
+          if printf '%s\n' "$code" > "$launch/finalization-exit.txt"; then :; else evidence_code=74; fi
+          if printf '{"stage":"finalization","exit_code":%s}\n' "$code" > "$launch/finalization-status.json"; then :; else evidence_code=74; fi
+          if printf 'finalization original_exit=%s evidence_exit=%s\n' "$code" "$evidence_code"; then :; else evidence_code=74; fi
+          if [ "$code" -ne 0 ]; then exit "$code"; fi
+          exit "$evidence_code"
       - name: Retain partial or complete evidence
         if: ${{ always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

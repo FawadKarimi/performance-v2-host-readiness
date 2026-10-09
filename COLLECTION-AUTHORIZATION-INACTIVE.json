@@ -3,7 +3,7 @@
   "accepted_native_run": 37875188985,
   "approval_mechanism": "externally_reviewed_record",
   "artifact_acquisition_authorized": false,
-  "collection_source_lock_sha256": "9b792396ccb8fe074355a45e3451405b5bd7463f8caad75ee0e9603dde07df5b",
+  "collection_source_lock_sha256": "4584947dac5481115a8e7608e61c5ef74a5e91e37cabfc4528ba4b0801fc2b5e",
   "commit": null,
   "compatibility_evidence_sha256": "f41c546729c9063004bb943e64378ec4a9adc5775d292846dc1e645158d100ab",
   "expires_utc": null,
@@ -34,7 +34,7 @@
   "security_approved": false,
   "security_review_reference": "PENDING collection-specific approval; no blanket security acceptance",
   "sources": {
-    ".github/workflows/two-index-collection.yml": "bf89e41d141ff377b1ccb87729d88d936c4e2365ccff777f91dd2e1c7e8fc998",
+    ".github/workflows/two-index-collection.yml": "62a68a6fc37cb1cfd5671cbefe9907991f0341395d0aab428cacf21cf1185bb2",
     "admission.py": "9135f97573163c4bdfe3ac329b99603046ccbb53db1e1a0c53f02dac2b8db547",
     "collector.py": "453899e6457baf48e4031e16d99442b8059c546c235c562edf40d5611efa8d79",
     "external_review.py": "8fbe0d1f3be16522ec536a3ddf205668cfc62b93c303fd66417faf5f5a7011d3",
