@@ -1,0 +1,133 @@
+name: Two-index collection (inactive single-use candidate)
+on:
+  workflow_dispatch:
+    inputs:
+      external_record_json:
+        type: string
+        required: true
+        default: '{}'
+      external_record_sha256:
+        type: string
+        required: true
+        default: ''
+      reviewed_commit:
+        type: string
+        required: true
+        default: ''
+      reviewed_collection_lock_sha256:
+        type: string
+        required: true
+        default: ''
+      owner_authorizes_requests:
+        type: boolean
+        required: true
+        default: false
+      fresh_zero_paid_usage:
+        type: boolean
+        required: true
+        default: false
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: two-index-single-use-collection
+  cancel-in-progress: false
+jobs:
+  collect:
+    if: ${{ github.repository == 'FawadKarimi/performance-v2-host-readiness' && github.event.repository.private == true && github.actor_id == '108207574' && github.triggering_actor == 'FawadKarimi' && github.ref == 'refs/heads/main' && github.run_attempt == 1 && inputs.reviewed_commit == github.sha && inputs.owner_authorizes_requests && inputs.fresh_zero_paid_usage }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      CUDA_VISIBLE_DEVICES: ''
+      EXTERNAL_RECORD_JSON: ${{ inputs.external_record_json }}
+      EXTERNAL_RECORD_SHA256: ${{ inputs.external_record_sha256 }}
+      REVIEWED_COLLECTION_LOCK_SHA256: ${{ inputs.reviewed_collection_lock_sha256 }}
+      OWNER_CONFIRMATION: ${{ inputs.owner_authorizes_requests }}
+      BILLING_CONFIRMATION: ${{ inputs.fresh_zero_paid_usage }}
+    steps:
+      - name: Reserve launch evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          launch="$RUNNER_TEMP/two-index-collection-launch-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          mkdir -m 700 "$launch"
+          printf '{"status":"started","collection_authorized":false}\n' > "$launch/started.json"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Verify current collection sources and inactive-record gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          launch="$RUNNER_TEMP/two-index-collection-launch-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          /usr/bin/python3.12 -I -B - <<'PY' > "$launch/source-before.json" 2> "$launch/preflight-stderr.log"
+          import hashlib,json,os,pathlib,stat,sys
+          root=pathlib.Path.cwd()
+          raw=(root/'two-index-collection-lock.json').read_bytes()
+          assert hashlib.sha256(raw).hexdigest()==os.environ['REVIEWED_COLLECTION_LOCK_SHA256']
+          lock=json.loads(raw)
+          assert lock['collection_authorized'] is False
+          for name,digest in lock['files'].items():
+              p=root/name
+              assert not pathlib.PurePosixPath(name).is_absolute() and '..' not in pathlib.PurePosixPath(name).parts
+              assert all(not q.is_symlink() for q in (p,*p.parents))
+              s=p.lstat();assert stat.S_ISREG(s.st_mode) and s.st_nlink==1 and s.st_size<=1048576
+              assert hashlib.sha256(p.read_bytes()).hexdigest()==digest
+          sys.path.insert(0,str(root))
+          import two_index_collection as integration
+          print(json.dumps(integration.preflight(root,os.environ)))
+          PY
+      - name: One bounded GitHub identity GET and existing parent-worker admission
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          umask 077
+          launch="$RUNNER_TEMP/two-index-collection-launch-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          timeout --signal=TERM --kill-after=5s 45s /usr/bin/python3.12 -I -B two_index_collection.py admit > "$launch/admission-stdout.log" 2> "$launch/admission-stderr.log"
+          code=$?
+          printf '%s\n' "$code" > "$launch/admission-exit.txt"
+          exit "$code"
+      - name: Exactly two reviewed PyPI index GETs
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          launch="$RUNNER_TEMP/two-index-collection-launch-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          folder="$RUNNER_TEMP/external-review-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          receipt_hash="$(sha256sum "$folder/receipt.json" | cut -d ' ' -f 1)"
+          runtime_hash="$(sha256sum metadata-runtime-acceptance.json | cut -d ' ' -f 1)"
+          set +e
+          timeout --signal=TERM --kill-after=5s 60s /usr/bin/python3.12 -I -B collector.py --manifest request-manifest.json --authorization "$folder/receipt.json" --authorization-sha256 "$receipt_hash" --runtime-acceptance metadata-runtime-acceptance.json --runtime-acceptance-sha256 "$runtime_hash" --output "$RUNNER_TEMP/pypi-evidence-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" > "$launch/collector-stdout.log" 2> "$launch/collector-stderr.log"
+          code=$?
+          printf '%s\n' "$code" > "$launch/collection-exit.txt"
+          exit "$code"
+      - name: Independently retain available evidence and fail closed on missing completion
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -uo pipefail
+          umask 077
+          launch="$RUNNER_TEMP/two-index-collection-launch-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          /usr/bin/python3.12 -I -B two_index_collection.py finalize > "$launch/finalization-stdout.log" 2> "$launch/finalization-stderr.log"
+          code=$?
+          printf '%s\n' "$code" > "$launch/finalization-exit.txt"
+          exit "$code"
+      - name: Retain partial or complete evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: two-index-collection-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/two-index-collection-launch-${{ github.run_id }}-${{ github.run_attempt }}/
+            ${{ runner.temp }}/external-review-${{ github.run_id }}-${{ github.run_attempt }}/
+            ${{ runner.temp }}/pypi-evidence-${{ github.run_id }}-${{ github.run_attempt }}/
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: false

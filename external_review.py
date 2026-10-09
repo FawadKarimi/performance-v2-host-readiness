@@ -12,7 +12,7 @@ import admission,runtime_acceptance,output_security
 REPO='FawadKarimi/performance-v2-host-readiness'
 REPO_ID=1392457611
 OWNER_ID=108207574
-WORKFLOW='.github/workflows/two-index-discovery.yml'
+WORKFLOW='.github/workflows/two-index-collection.yml'
 CORE=('collector.py','admission.py','runtime_acceptance.py','worker_diagnostics.py')
 BOUND=CORE+('external_review.py','output_security.py',WORKFLOW)
 FALSE_FLAGS=('protected_environment_verified','training_authorized','research_execution_authorized','artifact_acquisition_authorized','pilot_execution_authorized','security_approved')

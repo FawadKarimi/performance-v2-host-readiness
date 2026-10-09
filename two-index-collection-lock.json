@@ -1,0 +1,26 @@
+{
+  "accepted_native_run": 37875188985,
+  "accepted_source_lock_sha256": "aa36c192482ef8b2117ecada44c3bfdc7af6802776239e4709a3331b38509c66",
+  "collection_authorized": false,
+  "expected_isolated_cli_tests": 2,
+  "expected_new_integration_tests": 14,
+  "files": {
+    ".github/workflows/two-index-collection.yml": "bf89e41d141ff377b1ccb87729d88d936c4e2365ccff777f91dd2e1c7e8fc998",
+    "NATIVE-BOUNDED-ACCEPTANCE.json": "6df7cf3bd8e4ad6b2f59dacd3448c61942b000533b2b3ade115ee6847120a583",
+    "NEXT-METADATA-PROPOSAL.json": "61ff6089d427bac8e3d25f94411c1770c3931c7e586f78e1586c87a54d9f7071",
+    "admission.py": "9135f97573163c4bdfe3ac329b99603046ccbb53db1e1a0c53f02dac2b8db547",
+    "authorization-TEMPLATE.json": "3fe9a7103dabc6af55158a94754c49e4349881cf89cf5417ffaf7e2062546509",
+    "collector.py": "453899e6457baf48e4031e16d99442b8059c546c235c562edf40d5611efa8d79",
+    "external_review.py": "8fbe0d1f3be16522ec536a3ddf205668cfc62b93c303fd66417faf5f5a7011d3",
+    "metadata-runtime-acceptance.json": "b650feec2b4f59006618385c0dd5eb00f56fbda9a9e19c84d0fdee68ffb2ae40",
+    "output_security.py": "a8f45eb08d5f7998f64f805ab2479b86ecbe5de67ed63fa7a74b64c54d1e4df8",
+    "request-manifest.json": "87f57460137c3c51c9daddfc0085d893a587a6e770dce6e5e17f1739115b1489",
+    "runtime_acceptance.py": "df67147aed7d24cd79552141228565fb422ee86fe2509f3b82a8222a7bba6592",
+    "test_collection_integration.py": "3d64fed99221ce2e8cee49852407248b26c83ad36548a1c4fa49e6ab0b2bdbb1",
+    "test_isolated_collection_cli.py": "94e9c99efe1cc486b41c29d6d75f32039177289e52649be003406b3afe3f568d",
+    "two_index_collection.py": "ce6bc12812c1403868aa0b2437569284585221c4ffcba555e536cedff17a3697",
+    "worker_diagnostics.py": "f727b5d6a782bf313fe1ba00ca326d08769a384b87ef1cf1c14eb61ef6706427"
+  },
+  "production_authorized": false,
+  "schema": "two_index_collection_integration_lock_v1"
+}
